@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 
-const AUTH_REQUEST_TYPES = ['cr', 'clubHead'];
+const AUTH_REQUEST_TYPES = ['Class Representative', 'Club Head'];
 const AUTH_REQUEST_STATUSES = ['pending', 'approved', 'rejected'];
 
 const authRequestSchema = new mongoose.Schema(
