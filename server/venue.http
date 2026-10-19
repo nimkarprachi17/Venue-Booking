@@ -1,0 +1,53 @@
+### Create a venue
+POST http://localhost:5000/api/venues
+Content-Type: application/json
+
+{
+  "name": "NC99",
+  "type": "classroom",
+  "capacity": 70,
+  "facilities": ["projector", "ac"],
+  "location": "Test room"
+}
+
+### Duplicate name (expect 409)
+POST http://localhost:5000/api/venues
+Content-Type: application/json
+
+{
+  "name": "NC99",
+  "capacity": 70
+}
+
+### Invalid capacity (expect 400)
+POST http://localhost:5000/api/venues
+Content-Type: application/json
+
+{
+  "name": "NC98",
+  "capacity": 0
+}
+
+### Invalid facility (expect 400)
+POST http://localhost:5000/api/venues
+Content-Type: application/json
+
+{
+  "name": "NC98",
+  "capacity": 50,
+  "facilities": ["jetpack"]
+}
+
+### Update capacity (expect 200)
+PATCH http://localhost:5000/api/venues/PASTE_ID_HERE
+Content-Type: application/json
+
+{
+  "capacity": 90
+}
+
+### Deactivate (expect 200)
+PATCH http://localhost:5000/api/venues/PASTE_ID_HERE/deactivate
+
+### Get one venue (expect 404 once deactivated)
+GET http://localhost:5000/api/venues/PASTE_ID_HERE
