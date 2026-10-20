@@ -5,8 +5,15 @@ const otpModel = require("../models/otp.model")
 const sendOtpEmail = require("../email/email")
 const authRequest = require("../models/AuthRequest")
 
+const refreshCookieOptions = {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/api/auth",
+    maxAge: 7 * 24 * 60 * 60 * 1000,
+};
 
-//register
+
 //register
 const userRegister = async (req, res) => {
     try {
@@ -16,8 +23,9 @@ const userRegister = async (req, res) => {
         }
 
         const existing = await userModel.findOne({ email });
-        if (existing) {
-            if (existing.isAuthorized) {
+        const requestmodel=await authRequest.findOne({email});
+        if (requestmodel) {
+            if (requestmodel.status==="approved") {
                 return res.status(400).json({
                     message: "User already Exist",
                     user: { id: existing._id, email: existing.email }
@@ -43,12 +51,13 @@ const userRegister = async (req, res) => {
         await otpModel.create({ email, otp: otphash });
         await sendOtpEmail(email, otp, 'account_verification');
 
-        await authRequest.create({
+        if(role !== "Faculty" ) {await authRequest.create({  //kyuki authRequest schema sirf cr ,club ke liye haii .
             user: user._id,
             type: role,
             details: { name: fullName },
             status: "pending",
         });
+        }
 
         return res.status(200).json({
             message: "OTP sent successfully. Check email",
@@ -84,11 +93,17 @@ const otp_verify = async (req, res) => {
             { otpVerified: true },
             { new: true }
         );
-        if (user.role === "Faculty") user.isAuthorized = true;
-        await user.save()
+        // if (user.role === "Faculty") user.isAuthorized = true;
+        // await user.save()
         if (!user) {
             return res.status(404).json({ message: "User not found" });
         }
+
+        if (user.role === "Faculty") {
+            user.isAuthorized = true;
+            await authRequest.findOneAndUpdate({email}, {status:"approved"})
+        }
+        await user.save()
 
         return res.status(200).json({
             message: "Otp Verification Successfull",
@@ -96,7 +111,7 @@ const otp_verify = async (req, res) => {
                 id: user._id,
                 email: user.email,
                 role: user.role,
-                authorizationStatus: user.isAuthorized ? "approved" : "pending"
+                authorizationStatus:authRequest.status=="approved" ? "approved" : "pending"
             }
         });
     } catch (error) {
@@ -195,12 +210,27 @@ const userLogin = async (req, res) => {
         // }
 
         let authorizationStatus = "approved";
-        if (!user.isAuthorized) {
+        if (!user.isAuthorized) {    //yaha pe authRequest.status != "accepted" bhi chha jaata
             const request = await authRequest.findOne({ user: user._id }).sort({ createdAt: -1 });
             authorizationStatus = request?.status === "rejected" ? "rejected" : "pending";
         }
 
-       
+        let accessToken=null;
+        if (authorizationStatus==="approved") {
+            accessToken = jwt.sign(
+                { id: user._id, role: user.role },
+                process.env.JWT_SECRET,
+                { expiresIn: '15m' }
+            )
+
+            const refreshToken = jwt.sign(
+                { id: user._id },
+                process.env.JWT_SECRET,
+                { expiresIn: '7d' }
+            )
+
+            res.cookie("refreshToken", refreshToken, refreshCookieOptions)
+        }
 
         return res.status(200).json({
             success: true,
@@ -211,6 +241,7 @@ const userLogin = async (req, res) => {
                 role: user.role,
                 authorizationStatus,
             },
+            accessToken
         });
 
     } catch (error) {
@@ -223,4 +254,60 @@ const userLogin = async (req, res) => {
     }
 }
 
-module.exports = { userRegister, reSendOtp, userLogin, cancelRegistration, otp_verify }
+const refreshAccessToken=async(req,res)=>{
+    try{
+        const refreshToken=req.cookies.refreshToken
+        if(!refreshToken){
+            return res.status(401).json({
+                message:"No session"
+            })
+        }
+        const payload=await jwt.verify(refreshToken, process.env.JWT_SECRET)
+
+        const user=await userModel.findOne({_id:payload.id})
+
+        if(!user || !user.isAuthorized || !user.otpVerified){
+            res.clearCookie("refreshToken", {path: "/api/auth"})
+            return res.status(401).json({
+                message:"Session is not valid"
+            })
+        }
+        const accessToken=jwt.sign({
+            id:payload.id
+        },process.env.JWT_SECRET,{
+            expiresIn:"15m"
+        })
+
+        res.cookie("refreshToken", jwt.sign({id:user._id}, process.env.JWT_SECRET, {expiresIn:"7d"}), refreshCookieOptions)
+
+        return res.status(200).json({
+            accessToken:accessToken,
+            user:{
+                id:user._id,
+                email:user.email,
+                role:user.role,
+                authorizationStatus:"approved"
+            }
+        })
+    }
+    catch(error){
+        console.error("refresh access token generation failed",error)
+        res.clearCookie("refreshToken",{path: "/api/auth"})
+        return res.status(401).json({message:"Invalid or expired Token"})
+    }
+}
+
+const logout=(req,res)=>{
+    try{
+        res.clearCookie("refreshToken", {path:"/api/auth"})
+        return res.status(200).json({message:"Logout Successful", success:true})
+    }
+    catch(error){
+        console.error("Logout failed",error)
+        return res.status(400).json({
+            message:"Logout failed"
+        })
+    }
+}
+
+module.exports = { userRegister, reSendOtp, userLogin, cancelRegistration, otp_verify , refreshAccessToken,logout}
