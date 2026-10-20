@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import {
   LayoutDashboard,
@@ -173,19 +173,137 @@ function App() {
 
   // Authorization and profile-menu state.
   const [authorized, setAuthorized] = useState(true);
+
+  // JWT session and admin approval state.
+  const [accessToken, setAccessToken] = useState('');
+  const tokenRef = useRef('');
+  const [sessionReady, setSessionReady] = useState(false);
+  const [authRequests, setAuthRequests] = useState([]);
+  const [authFilter, setAuthFilter] = useState('pending');
+  const [reviewing, setReviewing] = useState(null);
+  const [rejectReason, setRejectReason] = useState('');
+  const [reviewBusy, setReviewBusy] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const isAdmin = role === 'Admin';
   const nav = isAdmin ? navAdmin : navUser;
-  const go = (p) => {
+  function go(p) {
     setPage(p);
     setMobileOpen(false);
     setSelected(null);
-  };
+  }
   const notify = (s) => {
     setToast(s);
     setTimeout(() => setToast(''), 3000);
   };
   const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
+  // JWT session: the access token lives in React state (mirrored in a ref so async code
+  // always sees the latest value). The refresh token lives in an httpOnly cookie that the
+  // browser sends automatically because every auth request uses credentials: 'include'.
+  function saveToken(token) {
+    tokenRef.current = token;
+    setAccessToken(token);
+  }
+  async function refreshSession() {
+    try {
+      const response = await fetch(`${apiBase}/api/auth/refresh`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      if (!response.ok) return null;
+      const data = await response.json();
+      saveToken(data.accessToken);
+      return data;
+    } catch {
+      return null;
+    }
+  }
+  function signOut() {
+    fetch(`${apiBase}/api/auth/logout`, { method: 'POST', credentials: 'include' }).catch(
+      () => {},
+    );
+    saveToken('');
+    setAuthRequests([]);
+    setLoginPassword('');
+    setLoginError('');
+    go('Sign in');
+  }
+  // Authenticated request helper: attaches the access token and, on a 401, silently
+  // refreshes the session once and retries before giving up.
+  async function api(path, options = {}, retry = true) {
+    const response = await fetch(`${apiBase}${path}`, {
+      ...options,
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(tokenRef.current ? { Authorization: `Bearer ${tokenRef.current}` } : {}),
+        ...options.headers,
+      },
+    });
+    if (response.status === 401 && retry) {
+      const refreshed = await refreshSession();
+      if (refreshed) return api(path, options, false);
+      signOut();
+      throw new Error('Session expired. Please sign in again.');
+    }
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.message || 'Request failed.');
+    return data;
+  }
+
+  // Restore the session on page load from the refresh cookie.
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      const data = await refreshSession();
+      if (!active) return;
+      if (data?.user) {
+        setRole(data.user.role);
+        setAuthorized(true);
+        setPage('Overview');
+      } else {
+        setPage('Sign in');
+      }
+      setSessionReady(true);
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  // Admin: authorization requests (list, approve, reject).
+  async function loadAuthRequests(reviewStatus) {
+    try {
+      const data = await api(`/api/admin/auth-requests?status=${reviewStatus}`);
+      setAuthRequests(data.requests);
+    } catch (error) {
+      notify(error.message);
+    }
+  }
+  async function reviewRequest(id, action, reason) {
+    if (reviewBusy) return;
+    setReviewBusy(true);
+    try {
+      await api(`/api/admin/auth-requests/${id}/${action}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ reason }),
+      });
+      setModal('');
+      setReviewing(null);
+      setRejectReason('');
+      notify(action === 'approve' ? 'Authorization approved' : 'Authorization rejected');
+      await loadAuthRequests(page === 'Overview' ? 'pending' : authFilter);
+    } catch (error) {
+      notify(error.message);
+    } finally {
+      setReviewBusy(false);
+    }
+  }
+  useEffect(() => {
+    if (!isAdmin || !accessToken) return;
+    if (page === 'Overview') loadAuthRequests('pending');
+    else if (page === 'Authorization Requests') loadAuthRequests(authFilter);
+  }, [isAdmin, accessToken, page, authFilter]);
 
   // Registration, email verification, and sign-in requests.
   useEffect(() => {
@@ -326,6 +444,7 @@ function App() {
     try {
       const response = await fetch(`${apiBase}/api/auth/login`, {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: loginEmail, password: loginPassword }),
       });
@@ -342,6 +461,7 @@ function App() {
         go('Access Pending');
         return;
       }
+      saveToken(data.accessToken || '');
       go('Overview');
       notify('Signed in successfully');
     } catch (error) {
@@ -654,6 +774,7 @@ function App() {
             <div className="input-icon">
               <Search size={16} />
               <input
+                name="venueSearch"
                 placeholder="Try ‘Academic Block’"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
@@ -662,13 +783,13 @@ function App() {
           )}
         </div>
         <div className="filter-grid">
-          {field('Event date', <input type="date" defaultValue="2026-10-21" />)}
-          {field('Start time', <input type="time" defaultValue="10:00" />)}
-          {field('End time', <input type="time" defaultValue="12:00" />)}
-          {field('Attendees', <input type="number" defaultValue="72" />)}
+          {field('Event date', <input name="searchDate" type="date" defaultValue="2026-10-21" />)}
+          {field('Start time', <input name="searchStartTime" type="time" defaultValue="10:00" />)}
+          {field('End time', <input name="searchEndTime" type="time" defaultValue="12:00" />)}
+          {field('Attendees', <input name="searchAttendees" type="number" defaultValue="72" />)}
           {field(
             'Event type',
-            <select>
+            <select name="searchEventType">
               <option>Presentation</option>
               <option>Workshop</option>
               <option>Meeting</option>
@@ -677,7 +798,7 @@ function App() {
           )}
           {field(
             'Facilities',
-            <select>
+            <select name="searchFacilities">
               <option>Projector</option>
               <option>Video conferencing</option>
               <option>PA system</option>
@@ -700,7 +821,7 @@ function App() {
         <b>{venues.length} venues</b>
         <label>
           Sort by{' '}
-          <select>
+          <select name="sortBy">
             <option>Best fit</option>
             <option>Capacity</option>
             <option>Name</option>
@@ -751,14 +872,19 @@ function App() {
         <section className="panel form-panel">
           <h2>Event details</h2>
           <div className="form-grid">
-            {isAdmin && field('Booking for', <input placeholder="Name and college email" />)}
+            {isAdmin &&
+              field('Booking for', <input name="bookingFor" placeholder="Name and college email" />)}
             {field(
               'Event title',
-              <input id="eventTitle" placeholder="e.g. CSE Project Presentation" />,
+              <input
+                id="eventTitle"
+                name="eventTitle"
+                placeholder="e.g. CSE Project Presentation"
+              />,
             )}
             {field(
               'Event type',
-              <select>
+              <select name="eventType">
                 <option>Presentation</option>
                 <option>Workshop</option>
                 <option>Meeting</option>
@@ -767,28 +893,44 @@ function App() {
             )}
             {field(
               'Purpose or description',
-              <textarea rows="3" placeholder="Briefly describe the event" />,
+              <textarea
+                name="eventDescription"
+                rows="3"
+                placeholder="Briefly describe the event"
+              />,
             )}
-            {field('Attendees', <input id="attendees" type="number" defaultValue="48" />)}
+            {field(
+              'Attendees',
+              <input id="attendees" name="attendees" type="number" defaultValue="48" />,
+            )}
             {field(
               'Venue',
-              <select value={venue} onChange={(e) => setVenue(e.target.value)}>
+              <select name="venue" value={venue} onChange={(e) => setVenue(e.target.value)}>
                 {venues.map((v) => (
-                  <option>{v.name}</option>
+                  <option key={v.name}>{v.name}</option>
                 ))}
               </select>,
             )}
-            {field('Event date', <input id="eventDate" type="date" defaultValue="2026-10-28" />)}
-            {field('Start time', <input id="startTime" type="time" defaultValue="10:00" />)}
-            {field('End time', <input id="endTime" type="time" defaultValue="12:00" />)}
+            {field(
+              'Event date',
+              <input id="eventDate" name="eventDate" type="date" defaultValue="2026-10-28" />,
+            )}
+            {field(
+              'Start time',
+              <input id="startTime" name="startTime" type="time" defaultValue="10:00" />,
+            )}
+            {field(
+              'End time',
+              <input id="endTime" name="endTime" type="time" defaultValue="12:00" />,
+            )}
             {field(
               'Required facilities',
               <div className="checkboxes">
                 <label>
-                  <input type="checkbox" defaultChecked /> Projector
+                  <input type="checkbox" name="facilityProjector" defaultChecked /> Projector
                 </label>
                 <label>
-                  <input type="checkbox" /> Video conferencing
+                  <input type="checkbox" name="facilityVideoConferencing" /> Video conferencing
                 </label>
               </div>,
             )}
@@ -949,6 +1091,7 @@ function App() {
         <div className="tabs">
           {['All', 'Upcoming', 'Pending', 'Approved', 'Rejected', 'Cancelled'].map((t) => (
             <button
+              key={t}
               className={filter === t ? 'active' : ''}
               onClick={() => setFilter(t === 'Upcoming' ? 'All' : t)}
             >
@@ -960,12 +1103,13 @@ function App() {
           <div className="input-icon">
             <Search size={16} />
             <input
+              name="bookingSearch"
               placeholder="Search bookings"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
             />
           </div>
-          <input type="date" aria-label="Filter by date" />
+          <input name="bookingDateFilter" type="date" aria-label="Filter by date" />
         </div>
       </div>
       {table(filteredBookings)}
@@ -1004,36 +1148,48 @@ function App() {
               <p>Authorization grants booking access; each booking still needs approval.</p>
             </div>
           </div>
-          {[
-            'Arjun Mehta · Club Head · Coding Club',
-            'Nisha Rao · Class Representative · CSE 3rd Year',
-            'Kabir Das · Club Head · Robotics Club',
-          ].map((n, i) => (
-            <div className="auth-request">
+          <div className="tabs">
+            {['pending', 'approved', 'rejected'].map((t) => (
+              <button
+                key={t}
+                className={authFilter === t ? 'active' : ''}
+                onClick={() => setAuthFilter(t)}
+              >
+                {t.charAt(0).toUpperCase() + t.slice(1)}
+              </button>
+            ))}
+          </div>
+          {authRequests.length === 0 && (
+            <div className="empty">
+              <ShieldCheck />
+              <b>No {authFilter} requests</b>
+              <span>Role requests will appear here.</span>
+            </div>
+          )}
+          {authRequests.map((r) => (
+            <div className="auth-request" key={r._id}>
               <div>
-                <b>{n.split(' · ')[0]}</b>
+                <b>{r.user?.name || 'Unknown user'}</b>
                 <span>
-                  {n.split(' · ').slice(1).join(' · ')} · Submitted {17 - i} Oct 2026
+                  {r.type} · {r.user?.email} · Submitted{' '}
+                  {new Date(r.createdAt).toLocaleDateString('en-IN')}
                 </span>
+                {r.status === 'rejected' && r.rejectionReason && (
+                  <small className="reason">Reason: {r.rejectionReason}</small>
+                )}
               </div>
               <div className="row-actions">
                 {button(
                   'Review',
                   () => {
-                    setSelected({
-                      requester: n.split(' · ')[0],
-                      role: n.split(' · ')[1],
-                      club: n.split(' · ')[2],
-                    });
+                    setReviewing(r);
+                    setRejectReason('');
                     setModal('authorization');
                   },
                   'secondary',
                 )}
-                {button(
-                  'Approve',
-                  () => notify(`Authorization approved for ${n.split(' · ')[0]}`),
-                  'text',
-                )}
+                {r.status === 'pending' &&
+                  button('Approve', () => reviewRequest(r._id, 'approve'), 'text')}
               </div>
             </div>
           ))}
@@ -1055,10 +1211,17 @@ function App() {
           <div className="notice">
             Your authorization is approved. Every booking request still requires admin approval.
           </div>
-          {field('Authorized class or club', <input defaultValue="CSE Coding Club" />)}
+          {field(
+            'Authorized class or club',
+            <input name="authorizedClub" defaultValue="CSE Coding Club" />,
+          )}
           {field(
             'Supporting information',
-            <textarea rows="3" defaultValue="Student club lead for the 2026–27 academic year." />,
+            <textarea
+              name="supportingInfo"
+              rows="3"
+              defaultValue="Student club lead for the 2026–27 academic year."
+            />,
           )}
           {button('Update details', () => notify('Authorization details updated'), 'primary')}
         </section>
@@ -1087,15 +1250,18 @@ function App() {
               <div className="form-grid">
                 {field(
                   'Requested role',
-                  <select value={role} onChange={(e) => setRole(e.target.value)}>
+                  <select name="requestedRole" value={role} onChange={(e) => setRole(e.target.value)}>
                     <option>Class Representative</option>
                     <option>Club Head</option>
                   </select>,
                 )}
-                {field('Class or club', <input placeholder="e.g. CSE 3rd Year / Coding Club" />)}
+                {field(
+                  'Class or club',
+                  <input name="classOrClub" placeholder="e.g. CSE 3rd Year / Coding Club" />,
+                )}
                 {field(
                   'Academic year',
-                  <select>
+                  <select name="academicYear">
                     <option>2026–27</option>
                     <option>2025–26</option>
                   </select>,
@@ -1103,6 +1269,7 @@ function App() {
                 {field(
                   'Supporting information',
                   <textarea
+                    name="supportingInfo"
                     rows="4"
                     placeholder="Describe your role and include relevant details"
                   />,
@@ -1141,7 +1308,7 @@ function App() {
         </div>
         <div>
           <span>Authorization requests</span>
-          <b>3</b>
+          <b>{authRequests.length}</b>
           <small>Require your review</small>
         </div>
       </div>
@@ -1167,19 +1334,24 @@ function App() {
             </div>
             {button('View all', () => go('Authorization Requests'), 'text')}
           </div>
-          {[
-            'Arjun Mehta · Coding Club',
-            'Nisha Rao · CSE 3rd Year',
-            'Kabir Das · Robotics Club',
-          ].map((n, i) => (
-            <div className="auth-request">
+          {authRequests.length === 0 && <p className="muted">No pending authorization requests.</p>}
+          {authRequests.slice(0, 3).map((r) => (
+            <div className="auth-request" key={r._id}>
               <div>
-                <b>{n.split(' · ')[0]}</b>
-                <span>
-                  {n.split(' · ')[1]} · {i === 1 ? 'Class Representative' : 'Club Head'}
-                </span>
+                <b>{r.user?.name || 'Unknown user'}</b>
+                <span>{r.type}</span>
               </div>
-              <div>{button('Review', () => setModal('authorization'), 'secondary')}</div>
+              <div>
+                {button(
+                  'Review',
+                  () => {
+                    setReviewing(r);
+                    setRejectReason('');
+                    setModal('authorization');
+                  },
+                  'secondary',
+                )}
+              </div>
             </div>
           ))}
         </section>
@@ -1196,7 +1368,7 @@ function App() {
             ['11:30', 'Research committee', 'Conference Room A'],
             ['14:00', 'Lab induction', 'Computer Lab 1'],
           ].map((x) => (
-            <div className="schedule-row">
+            <div className="schedule-row" key={x[0]}>
               <b>{x[0]}</b>
               <span>{x[1]}</span>
               <small>{x[2]}</small>
@@ -1217,18 +1389,19 @@ function App() {
         <div className="input-icon">
           <Search size={16} />
           <input
+            name="venueAdminSearch"
             placeholder="Search venues"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
         </div>
-        <select>
+        <select name="capacityFilter">
           <option>All capacities</option>
           <option>Under 50</option>
           <option>50–100</option>
           <option>100+</option>
         </select>
-        <select>
+        <select name="facilityFilter">
           <option>All facilities</option>
           <option>Projector</option>
           <option>Accessible</option>
@@ -1239,7 +1412,7 @@ function App() {
           <thead>
             <tr>
               {['Venue', 'Location', 'Capacity', 'Facilities', 'Status', 'Actions'].map((x) => (
-                <th>{x}</th>
+                <th key={x}>{x}</th>
               ))}
             </tr>
           </thead>
@@ -1247,7 +1420,7 @@ function App() {
             {venues
               .filter((v) => v.name.toLowerCase().includes(query.toLowerCase()))
               .map((v) => (
-                <tr>
+                <tr key={v.name}>
                   <td>
                     <b>{v.name}</b>
                   </td>
@@ -1303,13 +1476,15 @@ function App() {
         </div>
         <div className="tabs">
           {['Day', 'Week', 'Month'].map((t, i) => (
-            <button className={i === 1 ? 'active' : ''}>{t}</button>
+            <button key={t} className={i === 1 ? 'active' : ''}>
+              {t}
+            </button>
           ))}
         </div>
-        <select>
+        <select name="calendarVenue">
           <option>All venues</option>
           {venues.map((v) => (
-            <option>{v.name}</option>
+            <option key={v.name}>{v.name}</option>
           ))}
         </select>
       </div>
@@ -1328,11 +1503,11 @@ function App() {
             '16:00',
             '17:00',
           ].map((t) => (
-            <span>{t}</span>
+            <span key={t}>{t}</span>
           ))}
         </div>
         {['Mon 19', 'Tue 20', 'Wed 21', 'Thu 22', 'Fri 23', 'Sat 24', 'Sun 25'].map((day, i) => (
-          <div className="day-col">
+          <div className="day-col" key={day}>
             <b>{day}</b>
             <div className="day-slots">
               {i === 2 && (
@@ -1371,9 +1546,9 @@ function App() {
         'Analytics',
         'Booking patterns and venue utilization.',
         <div className="toolbar">
-          <input type="date" defaultValue="2026-10-01" />
+          <input name="analyticsFrom" type="date" aria-label="From date" defaultValue="2026-10-01" />
           <span>to</span>
-          <input type="date" defaultValue="2026-10-31" />
+          <input name="analyticsTo" type="date" aria-label="To date" defaultValue="2026-10-31" />
         </div>,
       )}
       <div className="analytics-grid">
@@ -1386,7 +1561,7 @@ function App() {
           </div>
           <div className="bar-chart">
             {[12, 19, 15, 27, 22, 32, 26, 36, 28, 40, 33, 48].map((n, i) => (
-              <div>
+              <div key={i}>
                 <span style={{ height: `${n * 2}px` }}></span>
                 <small>
                   {['1', '3', '5', '7', '9', '11', '13', '15', '17', '19', '21', '23'][i]}
@@ -1408,7 +1583,7 @@ function App() {
             ['Computer Lab 1', 42],
             ['Conference Room A', 31],
           ].map(([name, n]) => (
-            <div className="util-row">
+            <div className="util-row" key={name}>
               <span>{name}</span>
               <div className="progress">
                 <i style={{ width: `${n}%` }} />
@@ -1426,7 +1601,7 @@ function App() {
               ['Main Auditorium', '21 bookings'],
               ['Classroom C-204', '17 bookings'],
             ].map((x, i) => (
-              <div>
+              <div key={x[0]}>
                 <b>{String(i + 1).padStart(2, '0')}</b>
                 <span>{x[0]}</span>
                 <small>{x[1]}</small>
@@ -1443,7 +1618,7 @@ function App() {
               ['Pending', 7],
               ['Rejected', 4],
             ].map(([n, v]) => (
-              <div>
+              <div key={n}>
                 {status(n)}
                 <b>{v}</b>
               </div>
@@ -1529,6 +1704,7 @@ function App() {
                 {field(
                   'College email',
                   <input
+                    name="recoveryEmail"
                     type="email"
                     autoComplete="email"
                     placeholder="name@college.edu"
@@ -1584,6 +1760,7 @@ function App() {
                 {field(
                   'Email verification code',
                   <input
+                    name="otpCode"
                     inputMode="numeric"
                     autoComplete="one-time-code"
                     maxLength="6"
@@ -1653,7 +1830,11 @@ function App() {
                 )}
                 {field(
                   'College role',
-                  <select value={signupRole} onChange={(e) => setSignupRole(e.target.value)}>
+                  <select
+                    name="signupRole"
+                    value={signupRole}
+                    onChange={(e) => setSignupRole(e.target.value)}
+                  >
                     <option>Faculty</option>
                     <option>Class Representative</option>
                     <option>Club Head</option>
@@ -1709,6 +1890,7 @@ function App() {
                 {field(
                   'College email',
                   <input
+                    name="email"
                     type="email"
                     autoComplete="email"
                     placeholder="name@college.edu"
@@ -1723,6 +1905,7 @@ function App() {
                   'Password',
                   <div className="password-wrap">
                     <input
+                      name="password"
                       type={showPassword ? 'text' : 'password'}
                       autoComplete="current-password"
                       placeholder="Enter your password"
@@ -1745,7 +1928,7 @@ function App() {
                 )}
                 <div className="login-options">
                   <label>
-                    <input type="checkbox" /> Remember me
+                    <input type="checkbox" name="rememberMe" /> Remember me
                   </label>
                   <button
                     className="text-button"
@@ -1819,9 +2002,12 @@ function App() {
           <>
             {heading('Profile', 'Your college account details.')}
             <section className="panel auth-panel">
-              {field('Full name', <input defaultValue="Prachi Sharma" />)}
-              {field('College email', <input defaultValue="prachi.sharma@college.edu" />)}
-              {field('Role', <input value={role} readOnly />)}
+              {field('Full name', <input name="profileName" defaultValue="Prachi Sharma" />)}
+              {field(
+                'College email',
+                <input name="profileEmail" defaultValue="prachi.sharma@college.edu" />,
+              )}
+              {field('Role', <input name="profileRole" value={role} readOnly />)}
               {button('Save changes', () => notify('Profile updated'), 'primary')}
             </section>
           </>
@@ -1832,6 +2018,15 @@ function App() {
   };
 
   const content = renderPage();
+  if (!sessionReady) {
+    return (
+      <div className="login-screen">
+        <div className="login-card">
+          <p>Loading…</p>
+        </div>
+      </div>
+    );
+  }
   return (
     <>
       {page === 'Sign in' || page === 'Access Pending' ? (
@@ -1852,6 +2047,7 @@ function App() {
             <nav>
               {nav.map(([name, Icon]) => (
                 <button
+                  key={name}
                   className={`nav-item ${page === name ? 'active' : ''}`}
                   onClick={() => go(name)}
                 >
@@ -1862,7 +2058,7 @@ function App() {
               ))}
             </nav>
             <div className="sidebar-bottom">
-              <button className="nav-item" onClick={() => go('Sign in')}>
+              <button className="nav-item" onClick={signOut}>
                 <LogOut size={18} />
                 Sign out
               </button>
@@ -1944,6 +2140,7 @@ function App() {
                 <label className="field">
                   <span>Reason for rejection</span>
                   <textarea
+                    name="rejectionReason"
                     rows="4"
                     placeholder="e.g. Venue is reserved for examinations on this date."
                   />
@@ -2004,31 +2201,54 @@ function App() {
                 </div>
               </>
             ) : modal === 'authorization' ? (
-              <>
-                <h2>Authorization request</h2>
-                <p>Arjun Mehta · Coding Club Head</p>
-                <div className="notice">
-                  Submitted 17 Oct 2026. Supports the 2026–27 club leadership roster.
-                </div>
-                <div className="modal-actions">
-                  {button(
-                    'Reject',
-                    () => {
-                      setModal('');
-                      notify('Authorization request rejected');
-                    },
-                    'danger-button',
+              reviewing && (
+                <>
+                  <h2>Authorization request</h2>
+                  <p>
+                    {reviewing.user?.name} · {reviewing.type}
+                  </p>
+                  <div className="notice">
+                    {reviewing.user?.email} · Submitted{' '}
+                    {new Date(reviewing.createdAt).toLocaleDateString('en-IN')}
+                  </div>
+                  {reviewing.status === 'pending' ? (
+                    <>
+                      <label className="field">
+                        <span>Reason (required to reject)</span>
+                        <textarea
+                          name="authRejectReason"
+                          rows="3"
+                          value={rejectReason}
+                          onChange={(e) => setRejectReason(e.target.value)}
+                        />
+                      </label>
+                      <div className="modal-actions">
+                        {button(
+                          'Reject',
+                          () => {
+                            if (!rejectReason.trim()) {
+                              notify('Enter a rejection reason');
+                              return;
+                            }
+                            reviewRequest(reviewing._id, 'reject', rejectReason.trim());
+                          },
+                          'danger-button',
+                        )}
+                        {button(
+                          reviewBusy ? 'Please wait…' : 'Approve authorization',
+                          () => reviewRequest(reviewing._id, 'approve'),
+                          'primary',
+                        )}
+                      </div>
+                    </>
+                  ) : (
+                    <p>
+                      Status: {reviewing.status}
+                      {reviewing.rejectionReason ? ` · Reason: ${reviewing.rejectionReason}` : ''}
+                    </p>
                   )}
-                  {button(
-                    'Approve authorization',
-                    () => {
-                      setModal('');
-                      notify('Authorization approved');
-                    },
-                    'primary',
-                  )}
-                </div>
-              </>
+                </>
+              )
             ) : (
               <>
                 <h2>
@@ -2048,14 +2268,31 @@ function App() {
                     {field(
                       'Venue name',
                       <input
+                        name="venueName"
                         defaultValue={modal === 'edit-venue' ? venue : ''}
                         placeholder="Venue name"
                       />,
                     )}
-                    {field('Location', <input placeholder="Building and floor" />)}
-                    {field('Capacity', <input type="number" placeholder="Maximum attendees" />)}
-                    {field('Facilities', <input placeholder="Projector, whiteboard" />)}
-                    {field('Description', <textarea rows="2" placeholder="Venue description" />)}
+                    {field(
+                      'Location',
+                      <input name="venueLocation" placeholder="Building and floor" />,
+                    )}
+                    {field(
+                      'Capacity',
+                      <input name="venueCapacity" type="number" placeholder="Maximum attendees" />,
+                    )}
+                    {field(
+                      'Facilities',
+                      <input name="venueFacilities" placeholder="Projector, whiteboard" />,
+                    )}
+                    {field(
+                      'Description',
+                      <textarea
+                        name="venueDescription"
+                        rows="2"
+                        placeholder="Venue description"
+                      />,
+                    )}
                   </div>
                 )}
                 <div className="modal-actions">
