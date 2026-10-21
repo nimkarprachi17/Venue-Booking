@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 
-const ROLES = ['faculty', 'cr', 'clubHead', 'admin'];
+const ROLES = ['Faculty', 'Club Head', 'Class Representative', 'Admin'];
 
 const userSchema = new mongoose.Schema(
   {
@@ -19,7 +19,6 @@ const userSchema = new mongoose.Schema(
     passwordHash: {
       type: String,
       required: [true, 'Password hash is required'],
-      select: false,
     },
     role: {
       type: String,
@@ -34,6 +33,10 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    otpVerified:{
+      type:Boolean,
+      default:false,
+    }
   },
   { timestamps: true }
 );
