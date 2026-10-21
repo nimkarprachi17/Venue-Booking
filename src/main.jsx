@@ -1,11 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import {
-  LayoutDashboard,
   Search,
   CalendarDays,
   Bell,
-  UserRound,
   Menu,
   X,
   ChevronDown,
@@ -18,9 +16,7 @@ import {
   Check,
   AlertCircle,
   Building2,
-  ClipboardList,
   ShieldCheck,
-  BarChart3,
   LogOut,
   ArrowRight,
   Pencil,
@@ -39,6 +35,7 @@ const initialBookings = [
     date: '2026-10-21',
     time: '10:00 – 12:00',
     requested: '17 Oct 2026',
+    updatedAt: '2026-10-18T09:42:00+05:30',
     status: 'Confirmed',
     requester: 'Prachi Sharma',
     role: 'Faculty',
@@ -51,6 +48,7 @@ const initialBookings = [
     date: '2026-10-23',
     time: '14:00 – 16:00',
     requested: '16 Oct 2026',
+    updatedAt: '2026-10-18T08:15:00+05:30',
     status: 'Pending',
     requester: 'Arjun Mehta',
     role: 'Club Head',
@@ -63,6 +61,7 @@ const initialBookings = [
     date: '2026-10-25',
     time: '11:00 – 12:30',
     requested: '15 Oct 2026',
+    updatedAt: '2026-10-17T17:30:00+05:30',
     status: 'Approved',
     requester: 'Nisha Rao',
     role: 'Class Representative',
@@ -75,6 +74,7 @@ const initialBookings = [
     date: '2026-10-16',
     time: '09:00 – 11:00',
     requested: '12 Oct 2026',
+    updatedAt: '2026-10-16T08:20:00+05:30',
     status: 'Rejected',
     reason: 'Venue is reserved for department examinations.',
     requester: 'Kabir Das',
@@ -121,26 +121,27 @@ const venues = [
   },
 ];
 const navUser = [
-  ['Overview', LayoutDashboard],
-  ['Find a Venue', Search],
-  ['My Bookings', CalendarDays],
-  ['Authorization', ShieldCheck],
-  ['Notifications', Bell],
-  ['Profile', UserRound],
+  ['Overview', 'space_dashboard'],
+  ['Find a Venue', 'search'],
+  ['My Bookings', 'calendar_month'],
+  ['Authorization', 'verified_user'],
+  ['Notifications', 'notifications'],
+  ['Profile', 'person'],
 ];
 const navAdmin = [
-  ['Overview', LayoutDashboard],
-  ['Booking Requests', ClipboardList],
-  ['Authorization Requests', ShieldCheck],
-  ['Venue Management', Building2],
-  ['Booking Calendar', CalendarDays],
-  ['Analytics', BarChart3],
+  ['Overview', 'space_dashboard'],
+  ['Booking Requests', 'assignment'],
+  ['Authorization Requests', 'verified_user'],
+  ['Venue Management', 'meeting_room'],
+  ['Booking Calendar', 'calendar_month'],
+  ['Analytics', 'analytics'],
 ];
 function App() {
   // Current page and signed-in user's role.
   const [role, setRole] = useState('Faculty');
   const [page, setPage] = useState('Overview');
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [sidebarHidden, setSidebarHidden] = useState(false);
 
   // Booking and venue workspace state.
   const [bookings, setBookings] = useState(initialBookings);
@@ -371,6 +372,7 @@ function App() {
         date: document.getElementById('eventDate')?.value || '2026-10-28',
         time: `${document.getElementById('startTime')?.value || '10:00'} – ${document.getElementById('endTime')?.value || '12:00'}`,
         requested: '18 Oct 2026',
+        updatedAt: new Date().toISOString(),
         status: role === 'Faculty' || isAdmin ? 'Confirmed' : 'Pending',
         requester: 'Prachi Sharma',
         role,
@@ -392,12 +394,27 @@ function App() {
     notify('Authorization request submitted');
   };
   const decision = (id, status) => {
-    setBookings(bookings.map((b) => (b.id === id ? { ...b, status } : b)));
+    setBookings(
+      bookings.map((b) => (b.id === id ? { ...b, status, updatedAt: new Date().toISOString() } : b)),
+    );
     notify(`Booking ${status.toLowerCase()}`);
     setModal('');
   };
   // Shared presentational helpers used by multiple screens.
   const status = (s) => <span className={`status ${s.toLowerCase()}`}>{s}</span>;
+  const formatEventDate = (dateString) =>
+    new Intl.DateTimeFormat('en-GB', {
+      weekday: 'short',
+      day: 'numeric',
+      month: 'short',
+    }).format(new Date(`${dateString}T12:00:00`));
+  const formatActivityTime = (dateString) =>
+    new Intl.DateTimeFormat('en-GB', {
+      day: 'numeric',
+      month: 'short',
+      hour: 'numeric',
+      minute: '2-digit',
+    }).format(new Date(dateString));
   const button = (label, onClick, kind = 'secondary', icon = null) => (
     <button className={`button ${kind}`} onClick={onClick}>
       {icon && React.createElement(icon, { size: 16 })}
@@ -1794,23 +1811,58 @@ function App() {
       case 'Notifications':
         return (
           <>
-            {heading('Notifications', 'Updates about your bookings and role requests.')}
-            <section className="panel">
-              {bookings.slice(0, 4).map((booking) => (
-                <div className="update-item" key={booking.id}>
-                  <div>
-                    <b>
-                      {booking.status === 'Pending'
-                        ? 'Booking request submitted'
-                        : `Booking ${booking.status.toLowerCase()}`}
-                    </b>
-                    <span>
-                      {booking.event} · {booking.venue} · {booking.date}
-                    </span>
-                  </div>
-                  {status(booking.status)}
+            {heading('Notifications', 'Booking changes and decisions for your reservations.')}
+            <section className="panel notification-panel">
+              <div className="notification-panel-head">
+                <div>
+                  <h2>Recent activity</h2>
+                  <p>Updates are ordered by the latest change.</p>
                 </div>
-              ))}
+                <span>{bookings.length} updates</span>
+              </div>
+              {bookings.length > 0 ? (
+                <div className="notification-list">
+                  {[...bookings]
+                    .sort((first, second) => Date.parse(second.updatedAt) - Date.parse(first.updatedAt))
+                    .map((booking) => (
+                      <article className="notification-row" key={booking.id}>
+                        <button
+                          className="notification-main"
+                          aria-label={`Open details for ${booking.event}`}
+                          onClick={() => {
+                            setPage('My Bookings');
+                            setSelected(booking);
+                            setMobileOpen(false);
+                          }}
+                        >
+                          <span className="notification-copy">
+                            <strong>{booking.event}</strong>
+                            <span>
+                              {booking.venue} · {formatEventDate(booking.date)} · {booking.time}
+                            </span>
+                            {booking.reason && (
+                              <span className="notification-reason">
+                                Rejection reason: {booking.reason}
+                              </span>
+                            )}
+                          </span>
+                          <ArrowRight size={17} aria-hidden="true" />
+                        </button>
+                        <div className="notification-meta">
+                          <span className="notification-time">
+                            Updated {formatActivityTime(booking.updatedAt)}
+                          </span>
+                          {status(booking.status)}
+                        </div>
+                      </article>
+                    ))}
+                </div>
+              ) : (
+                <div className="notification-empty">
+                  <b>No booking updates yet</b>
+                  <span>Updates will appear here when a booking request changes.</span>
+                </div>
+              )}
             </section>
           </>
         );
@@ -1838,77 +1890,83 @@ function App() {
         login()
       ) : (
         <div className="app-shell">
-          <aside className={`sidebar ${mobileOpen ? 'open' : ''}`}>
+          <aside className={`sidebar ${mobileOpen ? 'open' : ''} ${sidebarHidden ? 'hidden' : ''}`}>
             <div className="brand">
               <span className="brand-mark">B</span>
-              <span>
+              <span className="brand-copy">
                 Book a Room<small>VENUE BOOKING</small>
               </span>
-              <button className="mobile-close" onClick={() => setMobileOpen(false)}>
+              <button
+                className="mobile-close"
+                aria-label="Close navigation"
+                onClick={() => setMobileOpen(false)}
+              >
                 <X />
               </button>
             </div>
             <div className="nav-label">WORKSPACE</div>
             <nav>
-              {nav.map(([name, Icon]) => (
+              {nav.map(([name, iconName]) => (
                 <button
+                  key={name}
                   className={`nav-item ${page === name ? 'active' : ''}`}
+                  aria-label={name}
                   onClick={() => go(name)}
                 >
-                  <Icon size={18} />
+                  <span className="material-symbols-outlined nav-icon" aria-hidden="true">
+                    {iconName}
+                  </span>
                   <span>{name}</span>
                   {name === 'Booking Requests' && isAdmin && <i className="nav-count">1</i>}
                 </button>
               ))}
             </nav>
             <div className="sidebar-bottom">
-              <button className="nav-item" onClick={() => go('Sign in')}>
+              <button className="nav-item" aria-label="Sign out" onClick={() => go('Sign in')}>
                 <LogOut size={18} />
-                Sign out
+                <span>Sign out</span>
               </button>
-              <div
-                className={`profile-mini ${profileOpen ? 'open' : ''}`}
-                onClick={() => setProfileOpen(!profileOpen)}
-              >
+              <div className="profile-mini">
                 <div className="avatar">PS</div>
                 <div>
                   <b>Prachi Sharma</b>
                   <span>{role}</span>
                 </div>
-                <ChevronDown
-                  size={15}
-                  className={`profile-chevron ${profileOpen ? 'rotated' : ''}`}
-                />
-                {profileOpen && (
-                  <div className="profile-dropdown" onClick={(e) => e.stopPropagation()}>
-                    <div className="profile-dropdown-label">Switch role</div>
-                    {['Faculty', 'Class Representative', 'Club Head', 'Admin'].map((r) => (
-                      <button
-                        key={r}
-                        className={`profile-dropdown-item ${role === r ? 'active' : ''}`}
-                        onClick={() => {
-                          setRole(r);
-                          setPage('Overview');
-                          setProfileOpen(false);
-                        }}
-                      >
-                        {role === r && <Check size={13} />}
-                        {r}
-                      </button>
-                    ))}
-                  </div>
-                )}
               </div>
             </div>
           </aside>
-          <div className="workspace">
+          {mobileOpen && (
+            <button
+              className="sidebar-overlay"
+              aria-label="Close navigation"
+              onClick={() => setMobileOpen(false)}
+            />
+          )}
+          <div className={`workspace ${sidebarHidden ? 'sidebar-hidden' : ''}`}>
             <header className="topbar">
-              <button className="mobile-menu" onClick={() => setMobileOpen(true)}>
+              <button
+                className="nav-toggle"
+                aria-label="Toggle navigation"
+                aria-expanded={
+                  window.matchMedia('(max-width: 720px)').matches ? mobileOpen : !sidebarHidden
+                }
+                title={
+                  window.matchMedia('(max-width: 720px)').matches
+                    ? 'Open navigation'
+                    : 'Toggle navigation'
+                }
+                onClick={() => {
+                  if (window.matchMedia('(max-width: 720px)').matches) {
+                    setSidebarHidden(false);
+                    setMobileOpen(true);
+                  } else {
+                    setSidebarHidden((hidden) => !hidden);
+                    setProfileOpen(false);
+                  }
+                }}
+              >
                 <Menu />
               </button>
-              <div className="breadcrumb">
-                Book a Room <span>/</span> <b>{page}</b>
-              </div>
               <div className="top-actions">
                 <button className="icon-button notify" onClick={() => go('Notifications')}>
                   <Bell size={18} />
