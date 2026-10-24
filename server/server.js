@@ -4,6 +4,8 @@ const cors = require('cors');
 const connectDB = require('./config/db');
 const authRoutes=require("./routes/auth.routes")
 const venueRoutes = require('./routes/venueRoutes');
+const adminRoutes = require('./routes/adminRoutes');
+const userRoutes = require('./routes/userRoutes');
 
 const app = express();
 const cookieParser=require("cookie-parser")
@@ -16,6 +18,8 @@ app.use(cors({
 app.use(cookieParser())
 app.use(express.json());
 app.use('/api/venues', venueRoutes);
+app.use('/api/admin', adminRoutes);
+app.use('/api/users', userRoutes);
 
 
 
