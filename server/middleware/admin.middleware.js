@@ -14,7 +14,7 @@ const adminMiddleware=async(req,res,next)=>{
 
     try{
         const accessToken=token.split(" ")[1]
-        const payload=jwt.verify(accessToken,ACCESS_TOKEN_SECRET)
+        const payload=jwt.verify(accessToken,process.env.ACCESS_TOKEN_SECRET)
         const user=await userModel.findById(payload.id)   // we dont need to check ki user otp verified(otp and approved by admin) hai ya nahi
         if(!user || payload.role != user.role || user.role!== 'Admin'){   //bcoz wo allready auth middleware mese pass hua hai, so he has token ,which only gets when user "logins"
             return res.status(403).json({  //403 for non admin users
