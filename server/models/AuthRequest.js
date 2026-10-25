@@ -45,6 +45,7 @@ const authRequestSchema = new mongoose.Schema(
     rejectionReason: {
       type: String,
       trim: true,
+      default:""
     },
     expiresAt: {
       type: Date,
