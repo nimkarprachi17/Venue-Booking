@@ -1,7 +1,23 @@
-# Venue Booking System
+# Book a Room
 
-A MERN-stack web app for booking campus venues. It supports four roles (Faculty, CR, Club Head and Admin), checks for booking conflicts, and suggests suitable venues based on capacity, facilities and availability.
+Book a Room is a college venue booking application with a React frontend and an Express/MongoDB API starter.
 
-Faculty bookings are confirmed instantly. CR and Club Head users need admin authorization, and their booking requests are approved by the admin.
+## Frontend
 
-**Tech stack:** React, Node.js, Express, MongoDB
+```bash
+npm install
+npm run dev
+```
+
+The frontend is a responsive React application. Use the role selector in the sidebar to preview Faculty, Class Representative, Club Head, and Admin workflows. Booking and authorization state currently lives in the browser session as frontend demonstration data.
+
+## API
+
+The Express API starter is in `server/`. Configure `MONGO_URI` in `server/.env` before starting the API.
+
+## Included workflows
+
+- Faculty booking confirmation and CR/Club Head booking approval states.
+- Role authorization requests, separate from booking approval.
+- Venue discovery, recommendations, venue details, and conflict alternatives.
+- Booking management, admin review, venue management, calendar, and analytics.

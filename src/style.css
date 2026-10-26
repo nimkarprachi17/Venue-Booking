@@ -552,6 +552,123 @@ td small {
   color: #5e6672;
   background: #f0f2f4;
 }
+.notification-panel {
+  max-width: 1040px;
+  padding: 0 22px;
+}
+.notification-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 19px 0 14px;
+  border-bottom: 1px solid var(--line);
+}
+.notification-panel-head > div {
+  display: grid;
+  gap: 4px;
+}
+.notification-panel-head h2 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 16px;
+  font-weight: 600;
+}
+.notification-panel-head p,
+.notification-panel-head > span {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+.notification-panel-head > span {
+  flex: none;
+  padding: 5px 8px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: #fff;
+}
+.notification-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 18px;
+  padding: 15px 0;
+  border-bottom: 1px solid #eff0f2;
+}
+.notification-row:last-child {
+  border-bottom: 0;
+}
+.notification-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.notification-main:hover strong {
+  color: var(--accent);
+}
+.notification-main:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+  border-radius: 2px;
+}
+.notification-main > svg {
+  flex: none;
+  color: #777d86;
+}
+.notification-copy {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+.notification-copy strong {
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+.notification-copy > span {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+.notification-copy .notification-reason {
+  color: var(--red);
+}
+.notification-meta {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  white-space: nowrap;
+}
+.notification-time {
+  color: var(--muted);
+  font-size: 11px;
+}
+.notification-empty {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  padding: 38px 16px;
+  text-align: center;
+}
+.notification-empty b {
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 600;
+}
+.notification-empty span {
+  color: var(--muted);
+  font-size: 12px;
+}
 .reason {
   color: var(--red) !important;
   white-space: normal;
@@ -2094,5 +2211,35 @@ dd {
   .signup-card .field input,
   .signup-card .field select {
     height: 36px;
+  }
+}
+@media (max-width: 720px) {
+  .panel.notification-panel {
+    padding: 0 14px;
+  }
+  .notification-panel-head {
+    align-items: flex-start;
+    padding: 15px 0 12px;
+  }
+  .notification-panel-head h2 {
+    font-size: 15px;
+  }
+  .notification-panel-head > span {
+    padding: 4px 6px;
+    font-size: 11px;
+  }
+  .notification-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 9px;
+    padding: 13px 0;
+  }
+  .notification-main {
+    gap: 10px;
+  }
+  .notification-copy strong {
+    font-size: 13px;
+  }
+  .notification-meta {
+    justify-content: space-between;
   }
 }
