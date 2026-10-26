@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import {
   Search,
@@ -26,62 +26,57 @@ import {
 } from 'lucide-react';
 import './style.css';
 
-// Sample records used to make the frontend flows usable without live venue data.
-const initialBookings = [
-  {
-    id: 'BK-24018',
-    event: 'CSE Project Presentation',
-    venue: 'Seminar Hall 2',
-    date: '2026-10-21',
-    time: '10:00 – 12:00',
-    requested: '17 Oct 2026',
-    updatedAt: '2026-10-18T09:42:00+05:30',
-    status: 'Confirmed',
-    requester: 'Prachi Sharma',
-    role: 'Faculty',
-    attendees: 72,
-  },
-  {
-    id: 'BK-24012',
-    event: 'Web Development Workshop',
-    venue: 'Computer Lab 1',
-    date: '2026-10-23',
-    time: '14:00 – 16:00',
-    requested: '16 Oct 2026',
-    updatedAt: '2026-10-18T08:15:00+05:30',
-    status: 'Pending',
-    requester: 'Arjun Mehta',
-    role: 'Club Head',
-    attendees: 48,
-  },
-  {
-    id: 'BK-23997',
-    event: 'Coding Club Meetup',
-    venue: 'Conference Room A',
-    date: '2026-10-25',
-    time: '11:00 – 12:30',
-    requested: '15 Oct 2026',
-    updatedAt: '2026-10-17T17:30:00+05:30',
-    status: 'Approved',
-    requester: 'Nisha Rao',
-    role: 'Class Representative',
-    attendees: 24,
-  },
-  {
-    id: 'BK-23941',
-    event: 'Design Thinking Session',
-    venue: 'Classroom C-204',
-    date: '2026-10-16',
-    time: '09:00 – 11:00',
-    requested: '12 Oct 2026',
-    updatedAt: '2026-10-16T08:20:00+05:30',
-    status: 'Rejected',
-    reason: 'Venue is reserved for department examinations.',
-    requester: 'Kabir Das',
-    role: 'Club Head',
-    attendees: 62,
-  },
-];
+// Helpers for dates/times and for mapping API bookings to the shape the screens already use.
+const toISODate = (d) =>
+  new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+const minutesOf = (t) => {
+  const [h, m] = t.split(':').map(Number);
+  return h * 60 + m;
+};
+const greeting = () => {
+  const hour = new Date().getHours();
+  return hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+};
+const weekDays = (offset = 0) => {
+  const start = new Date();
+  start.setDate(start.getDate() - ((start.getDay() + 6) % 7) + offset * 7);
+  return Array.from({ length: 7 }, (_, i) => {
+    const day = new Date(start);
+    day.setDate(start.getDate() + i);
+    return day;
+  });
+};
+const normalizeBooking = (b) => ({
+  id: b.bookingId,
+  event: b.event,
+  venue: b.venue,
+  date: b.date,
+  time: `${b.startTime} – ${b.endTime}`,
+  requested: new Date(b.createdAt).toLocaleDateString('en-IN', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  }),
+  status: b.status,
+  reason: b.rejectionReason,
+  requester: b.bookedFor || b.requestedBy?.name || 'Unknown',
+  role: b.requestedBy?.role || '',
+  attendees: b.attendees,
+  updatedAt: b.updatedAt || b.createdAt || new Date().toISOString(),
+});
+const formatEventDate = (dateString) =>
+  new Intl.DateTimeFormat('en-GB', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+  }).format(new Date(`${dateString}T12:00:00`));
+const formatActivityTime = (dateString) =>
+  new Intl.DateTimeFormat('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    hour: 'numeric',
+    minute: '2-digit',
+  }).format(new Date(dateString));
 // Venue inventory shown in search, recommendations, details, and administration.
 const venues = [
   {
@@ -128,6 +123,7 @@ const navUser = [
   ['Notifications', 'notifications'],
   ['Profile', 'person'],
 ];
+const navPublic = [['Find a Venue', 'search']];
 const navAdmin = [
   ['Overview', 'space_dashboard'],
   ['Booking Requests', 'assignment'],
@@ -136,21 +132,73 @@ const navAdmin = [
   ['Booking Calendar', 'calendar_month'],
   ['Analytics', 'analytics'],
 ];
+const pageRoutes = {
+  Overview: '/dashboard',
+  'Find a Venue': '/venues',
+  'My Bookings': '/bookings',
+  Authorization: '/authorization',
+  Notifications: '/notifications',
+  Profile: '/profile',
+  'Booking Requests': '/admin/booking-requests',
+  'Authorization Requests': '/admin/authorization-requests',
+  'Venue Management': '/admin/venues',
+  'Booking Calendar': '/admin/calendar',
+  Analytics: '/admin/analytics',
+  'Create Booking': '/bookings/new',
+  'Sign in': '/login',
+  'Sign up': '/register',
+  'Forgot password': '/forgot-password',
+  'Access Pending': '/access-pending',
+};
+const publicPages = new Set([
+  'Sign in',
+  'Sign up',
+  'Forgot password',
+  'Access Pending',
+  'Find a Venue',
+  'Venue Details',
+]);
+const getPageFromPath = (pathname) => {
+  const path = pathname.replace(/\/+$/, '') || '/';
+  if (path === '/') return 'Overview';
+  if (path.startsWith('/venues/')) return getVenueFromPath(path) ? 'Venue Details' : 'Not Found';
+  if (path.startsWith('/admin/booking-requests/')) return 'Booking Requests';
+  if (path.startsWith('/bookings/') && path !== '/bookings/new') return 'My Bookings';
+  return Object.entries(pageRoutes).find(([, route]) => route === path)?.[0] || 'Not Found';
+};
+const getVenueFromPath = (pathname) => {
+  const slug = pathname.match(/^\/venues\/([^/]+)\/?$/)?.[1];
+  if (!slug) return null;
+  let venueSlug;
+  try {
+    venueSlug = decodeURIComponent(slug);
+  } catch {
+    return null;
+  }
+  return (
+    venues.find((item) => item.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') === venueSlug)
+      ?.name ?? null
+  );
+};
+const getBookingIdFromPath = (pathname) => {
+  const match = pathname.match(/^\/(?:admin\/booking-requests|bookings)\/([^/]+)\/?$/);
+  return match && match[1] !== 'new' ? decodeURIComponent(match[1]) : null;
+};
 function App() {
   // Current page and signed-in user's role.
   const [role, setRole] = useState('Faculty');
-  const [page, setPage] = useState('Overview');
+  const [page, setPage] = useState(() => getPageFromPath(window.location.pathname));
   const [mobileOpen, setMobileOpen] = useState(false);
   const [sidebarHidden, setSidebarHidden] = useState(false);
 
   // Booking and venue workspace state.
-  const [bookings, setBookings] = useState(initialBookings);
+  const [bookings, setBookings] = useState([]);
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('All');
   const [selected, setSelected] = useState(null);
   const [toast, setToast] = useState('');
   const [modal, setModal] = useState('');
-  const [venue, setVenue] = useState('Seminar Hall 2');
+  const [venue, setVenue] = useState(() => getVenueFromPath(window.location.pathname) || 'Seminar Hall 2');
   const [showPassword, setShowPassword] = useState(false);
   const [month, setMonth] = useState(0);
 
@@ -174,19 +222,297 @@ function App() {
 
   // Authorization and profile-menu state.
   const [authorized, setAuthorized] = useState(true);
+
+  // JWT session and admin approval state.
+  const [accessToken, setAccessToken] = useState('');
+  const tokenRef = useRef('');
+  const [sessionReady, setSessionReady] = useState(false);
+  const [authRequests, setAuthRequests] = useState([]);
+  const [authFilter, setAuthFilter] = useState('pending');
+  const [reviewing, setReviewing] = useState(null);
+  const [rejectReason, setRejectReason] = useState('');
+  const [reviewBusy, setReviewBusy] = useState(false);
+
+  // Signed-in user's profile, plus calendar controls.
+  const [currentUser, setCurrentUser] = useState({ name: '', email: '', role: '' });
+  const [profileDraft, setProfileDraft] = useState(null);
+  const [calendarVenue, setCalendarVenue] = useState('All venues');
+  const [weekOffset, setWeekOffset] = useState(0);
   const [profileOpen, setProfileOpen] = useState(false);
   const isAdmin = role === 'Admin';
-  const nav = isAdmin ? navAdmin : navUser;
-  const go = (p) => {
+  const isSignedIn = Boolean(accessToken);
+  const nav = isAdmin ? navAdmin : isSignedIn ? navUser : navPublic;
+  const displayName = currentUser.name || 'User';
+  const initials = displayName
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0].toUpperCase())
+    .join('');
+  function go(p, options = {}) {
+    if (!tokenRef.current && !publicPages.has(p)) p = 'Sign in';
+    const path =
+      p === 'Venue Details'
+        ? `/venues/${venue.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`
+        : pageRoutes[p] || '/dashboard';
+    if (options.replace) {
+      window.history.replaceState({}, '', path);
+    } else if (window.location.pathname !== path) {
+      window.history.pushState({}, '', path);
+    }
     setPage(p);
+    if (p === 'Sign in') {
+      setAuthView('signin');
+      setRecovering(false);
+    } else if (p === 'Sign up') {
+      setAuthView('signup');
+      setSignupStep('details');
+      setRecovering(false);
+    } else if (p === 'Forgot password') {
+      setAuthView('signin');
+      setRecovering(true);
+    }
     setMobileOpen(false);
     setSelected(null);
-  };
+  }
+  function openBooking(booking) {
+    const detailPath = isAdmin
+      ? `/admin/booking-requests/${encodeURIComponent(booking.id)}`
+      : `/bookings/${encodeURIComponent(booking.id)}`;
+    if (window.location.pathname !== detailPath) {
+      window.history.pushState({}, '', detailPath);
+    }
+    setPage(isAdmin ? 'Booking Requests' : 'My Bookings');
+    setSelected(booking);
+    setMobileOpen(false);
+  }
+  function closeBookingDetails() {
+    const listPath = isAdmin ? pageRoutes['Booking Requests'] : pageRoutes['My Bookings'];
+    window.history.replaceState({}, '', listPath);
+    setSelected(null);
+  }
   const notify = (s) => {
     setToast(s);
     setTimeout(() => setToast(''), 3000);
   };
   const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
+  // JWT session: the access token lives in React state (mirrored in a ref so async code
+  // always sees the latest value). The refresh token lives in an httpOnly cookie that the
+  // browser sends automatically because every auth request uses credentials: 'include'.
+  function saveToken(token) {
+    tokenRef.current = token;
+    setAccessToken(token);
+  }
+  async function refreshSession() {
+    try {
+      const response = await fetch(`${apiBase}/api/auth/refresh`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      if (!response.ok) return null;
+      const data = await response.json();
+      saveToken(data.accessToken);
+      return data;
+    } catch {
+      return null;
+    }
+  }
+  function signOut() {
+    fetch(`${apiBase}/api/auth/logout`, { method: 'POST', credentials: 'include' }).catch(
+      () => {},
+    );
+    saveToken('');
+    setAuthRequests([]);
+    setBookings([]);
+    setCurrentUser({ name: '', email: '', role: '' });
+    setLoginPassword('');
+    setLoginError('');
+    go('Sign in');
+  }
+  // Authenticated request helper: attaches the access token and, on a 401, silently
+  // refreshes the session once and retries before giving up.
+  async function api(path, options = {}, retry = true) {
+    const response = await fetch(`${apiBase}${path}`, {
+      ...options,
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(tokenRef.current ? { Authorization: `Bearer ${tokenRef.current}` } : {}),
+        ...options.headers,
+      },
+    });
+    if (response.status === 401 && retry) {
+      const refreshed = await refreshSession();
+      if (refreshed) return api(path, options, false);
+      signOut();
+      throw new Error('Session expired. Please sign in again.');
+    }
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.message || 'Request failed.');
+    return data;
+  }
+
+  // Keep the rendered screen in sync with the browser URL and Back/Forward buttons.
+  useEffect(() => {
+    const handlePopState = () => {
+      const nextPage = getPageFromPath(window.location.pathname);
+      const bookingId = getBookingIdFromPath(window.location.pathname);
+      if (nextPage === 'Not Found') {
+        window.history.replaceState({}, '', '/dashboard');
+        setPage('Overview');
+      } else {
+        setPage(nextPage);
+        if (nextPage === 'Sign in') {
+          setAuthView('signin');
+          setRecovering(false);
+        } else if (nextPage === 'Sign up') {
+          setAuthView('signup');
+          setSignupStep('details');
+          setRecovering(false);
+        } else if (nextPage === 'Forgot password') {
+          setAuthView('signin');
+          setRecovering(true);
+        }
+        if (nextPage === 'Venue Details') {
+          setVenue(getVenueFromPath(window.location.pathname) || 'Seminar Hall 2');
+        }
+      }
+      setSelected(bookingId ? bookings.find((item) => String(item.id) === bookingId) || null : null);
+      setMobileOpen(false);
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [bookings]);
+
+  useEffect(() => {
+    const bookingId = getBookingIdFromPath(window.location.pathname);
+    if (!bookingId) {
+      setSelected(null);
+      return;
+    }
+    const booking = bookings.find((item) => String(item.id) === bookingId);
+    if (booking) setSelected(booking);
+  }, [bookings]);
+
+  // Restore the session on page load from the refresh cookie.
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      const data = await refreshSession();
+      if (!active) return;
+      if (data?.user) {
+        setRole(data.user.role);
+        setCurrentUser(data.user);
+        setAuthorized(true);
+        const requestedPage = getPageFromPath(window.location.pathname);
+        if (['Sign in', 'Sign up', 'Forgot password', 'Access Pending'].includes(requestedPage)) {
+          go('Overview', { replace: true });
+        } else if (requestedPage === 'Not Found') {
+          go('Overview', { replace: true });
+        } else if (
+          data.user.role !== 'Admin' &&
+          ['Booking Requests', 'Authorization Requests', 'Venue Management', 'Booking Calendar', 'Analytics'].includes(requestedPage)
+        ) {
+          go('Overview', { replace: true });
+        } else {
+          if (requestedPage === 'Venue Details') {
+            setVenue(getVenueFromPath(window.location.pathname) || 'Seminar Hall 2');
+          }
+          setPage(requestedPage);
+        }
+      } else {
+        const requestedPage = getPageFromPath(window.location.pathname);
+        if (!publicPages.has(requestedPage)) {
+          go('Sign in', { replace: true });
+        } else {
+          setPage(requestedPage);
+          if (requestedPage === 'Sign up') setAuthView('signup');
+          if (requestedPage === 'Forgot password') setRecovering(true);
+        }
+      }
+      setSessionReady(true);
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  // Protect application and administrator routes when the URL is entered directly.
+  useEffect(() => {
+    if (!sessionReady) return;
+    const adminPages = [
+      'Booking Requests',
+      'Authorization Requests',
+      'Venue Management',
+      'Booking Calendar',
+      'Analytics',
+    ];
+    if (!accessToken && !publicPages.has(page)) {
+      go('Sign in', { replace: true });
+    } else if (accessToken && ['Sign in', 'Sign up', 'Forgot password'].includes(page)) {
+      go('Overview', { replace: true });
+    } else if (accessToken && adminPages.includes(page) && !isAdmin) {
+      go('Overview', { replace: true });
+    }
+  }, [accessToken, isAdmin, page, sessionReady]);
+
+  // Admin: authorization requests (list, approve, reject).
+  async function loadAuthRequests(reviewStatus) {
+    try {
+      const data = await api(`/api/admin/auth-requests?status=${reviewStatus}`);
+      setAuthRequests(data.requests);
+    } catch (error) {
+      notify(error.message);
+    }
+  }
+  async function reviewRequest(id, action, reason) {
+    if (reviewBusy) return;
+    setReviewBusy(true);
+    try {
+      await api(`/api/admin/auth-requests/${id}/${action}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ reason }),
+      });
+      setModal('');
+      setReviewing(null);
+      setRejectReason('');
+      notify(action === 'approve' ? 'Authorization approved' : 'Authorization rejected');
+      await loadAuthRequests(page === 'Overview' ? 'pending' : authFilter);
+    } catch (error) {
+      notify(error.message);
+    } finally {
+      setReviewBusy(false);
+    }
+  }
+  useEffect(() => {
+    if (!isAdmin || !accessToken) return;
+    if (page === 'Overview') loadAuthRequests('pending');
+    else if (page === 'Authorization Requests') loadAuthRequests(authFilter);
+  }, [isAdmin, accessToken, page, authFilter]);
+
+  // Bookings: admins receive every booking, other users receive their own.
+  async function loadBookings() {
+    try {
+      const data = await api('/api/bookings');
+      setBookings(data.bookings.map(normalizeBooking));
+    } catch (error) {
+      notify(error.message);
+    }
+  }
+  useEffect(() => {
+    if (!accessToken) return;
+    const pages = [
+      'Overview',
+      'Find a Venue',
+      'My Bookings',
+      'Booking Requests',
+      'Booking Calendar',
+      'Analytics',
+      'Notifications',
+    ];
+    if (pages.includes(page)) loadBookings();
+  }, [accessToken, page]);
 
   // Registration, email verification, and sign-in requests.
   useEffect(() => {
@@ -327,6 +653,7 @@ function App() {
     try {
       const response = await fetch(`${apiBase}/api/auth/login`, {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: loginEmail, password: loginPassword }),
       });
@@ -343,6 +670,8 @@ function App() {
         go('Access Pending');
         return;
       }
+      saveToken(data.accessToken || '');
+      setCurrentUser(data.user);
       go('Overview');
       notify('Signed in successfully');
     } catch (error) {
@@ -363,58 +692,138 @@ function App() {
       ),
     [bookings, filter, query],
   );
-  const createBooking = () => {
-    setBookings([
-      {
-        id: `BK-${24020 + bookings.length}`,
-        event: document.getElementById('eventTitle')?.value || 'Student Research Showcase',
-        venue,
-        date: document.getElementById('eventDate')?.value || '2026-10-28',
-        time: `${document.getElementById('startTime')?.value || '10:00'} – ${document.getElementById('endTime')?.value || '12:00'}`,
-        requested: '18 Oct 2026',
-        updatedAt: new Date().toISOString(),
-        status: role === 'Faculty' || isAdmin ? 'Confirmed' : 'Pending',
-        requester: 'Prachi Sharma',
-        role,
-        attendees: Number(document.getElementById('attendees')?.value || 48),
-      },
-      ...bookings,
-    ]);
-    notify(
-      isAdmin
-        ? 'Booking created successfully'
-        : role === 'Faculty'
-          ? 'Booking confirmed'
-          : 'Request submitted for admin approval',
-    );
-    go('My Bookings');
+  const createBooking = async () => {
+    const pick = (name) => document.querySelector(`[name="${name}"]`);
+    const title = document.getElementById('eventTitle')?.value.trim();
+    const attendeeCount = Number(document.getElementById('attendees')?.value);
+    const capacity = venues.find((v) => v.name === venue)?.capacity;
+    if (!title) {
+      notify('Enter an event title');
+      return;
+    }
+    if (capacity && attendeeCount > capacity) {
+      notify(`${venue} fits up to ${capacity} people`);
+      return;
+    }
+    try {
+      await api('/api/bookings', {
+        method: 'POST',
+        body: JSON.stringify({
+          event: title,
+          eventType: pick('eventType')?.value,
+          description: pick('eventDescription')?.value,
+          venue,
+          date: document.getElementById('eventDate')?.value,
+          startTime: document.getElementById('startTime')?.value,
+          endTime: document.getElementById('endTime')?.value,
+          attendees: attendeeCount,
+          facilities: [
+            pick('facilityProjector')?.checked && 'Projector',
+            pick('facilityVideoConferencing')?.checked && 'Video conferencing',
+          ].filter(Boolean),
+          bookedFor: pick('bookingFor')?.value,
+        }),
+      });
+      notify(
+        isAdmin
+          ? 'Booking created successfully'
+          : role === 'Faculty'
+            ? 'Booking confirmed'
+            : 'Request submitted for admin approval',
+      );
+      await loadBookings();
+      go('My Bookings');
+    } catch (error) {
+      notify(error.message);
+    }
   };
   const authorize = () => {
     setAuthorized(false);
     notify('Authorization request submitted');
   };
-  const decision = (id, status) => {
-    setBookings(
-      bookings.map((b) => (b.id === id ? { ...b, status, updatedAt: new Date().toISOString() } : b)),
-    );
-    notify(`Booking ${status.toLowerCase()}`);
-    setModal('');
+  const decision = async (id, status, reason) => {
+    if (status === 'Rejected' && !reason?.trim()) {
+      notify('Enter a rejection reason');
+      return;
+    }
+    const action = { Approved: 'approve', Rejected: 'reject', Cancelled: 'cancel' }[status];
+    try {
+      await api(`/api/bookings/${id}/${action}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ reason: reason?.trim() }),
+      });
+      notify(`Booking ${status.toLowerCase()}`);
+      setModal('');
+      setSelected(null);
+      await loadBookings();
+    } catch (error) {
+      notify(error.message);
+    }
   };
+  const saveProfile = async () => {
+    const name = (profileDraft ?? currentUser.name).trim();
+    if (name.length < 2) {
+      notify('Enter your full name');
+      return;
+    }
+    try {
+      const data = await api('/api/users/me', {
+        method: 'PATCH',
+        body: JSON.stringify({ name }),
+      });
+      setCurrentUser(data.user);
+      setProfileDraft(null);
+      notify('Profile updated');
+    } catch (error) {
+      notify(error.message);
+    }
+  };
+  // Values derived from the real bookings (admin overview, calendar and analytics).
+  const today = toISODate(new Date());
+  const monthKey = today.slice(0, 7);
+  const monthLabel = new Date().toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
+  const pendingBookings = bookings.filter((b) => b.status === 'Pending').length;
+  const todaysBookings = bookings
+    .filter((b) => b.date === today && ['Confirmed', 'Approved'].includes(b.status))
+    .sort((a, b) => a.time.localeCompare(b.time));
+  const monthBookings = bookings.filter((b) => b.date.startsWith(monthKey));
+  const liveBookings = monthBookings.filter((b) => ['Confirmed', 'Approved'].includes(b.status));
+  const volumeBars = Array.from(
+    { length: 12 },
+    (_, i) =>
+      liveBookings.filter((b) => {
+        const day = Number(b.date.slice(8));
+        return i === 11 ? day >= 23 : day === 2 * i + 1 || day === 2 * i + 2;
+      }).length,
+  );
+  const volumeMax = Math.max(...volumeBars, 0);
+  const bookedHours = (list) =>
+    list.reduce((sum, b) => {
+      const [from, to] = b.time.split(' – ');
+      return sum + (minutesOf(to) - minutesOf(from)) / 60;
+    }, 0);
+  // Utilization assumes 9 bookable hours a day over 31 days.
+  const venueUtilization = venues
+    .map((v) => [
+      v.name,
+      Math.min(
+        100,
+        Math.round((bookedHours(liveBookings.filter((b) => b.venue === v.name)) / (9 * 31)) * 100),
+      ),
+    ])
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 4);
+  const mostBooked = venues
+    .map((v) => [v.name, liveBookings.filter((b) => b.venue === v.name).length])
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 4)
+    .map(([name, count]) => [name, `${count} bookings`]);
+  const statusBreakdown = ['Confirmed', 'Approved', 'Pending', 'Rejected'].map((name) => [
+    name,
+    monthBookings.filter((b) => b.status === name).length,
+  ]);
   // Shared presentational helpers used by multiple screens.
   const status = (s) => <span className={`status ${s.toLowerCase()}`}>{s}</span>;
-  const formatEventDate = (dateString) =>
-    new Intl.DateTimeFormat('en-GB', {
-      weekday: 'short',
-      day: 'numeric',
-      month: 'short',
-    }).format(new Date(`${dateString}T12:00:00`));
-  const formatActivityTime = (dateString) =>
-    new Intl.DateTimeFormat('en-GB', {
-      day: 'numeric',
-      month: 'short',
-      hour: 'numeric',
-      minute: '2-digit',
-    }).format(new Date(dateString));
   const button = (label, onClick, kind = 'secondary', icon = null) => (
     <button className={`button ${kind}`} onClick={onClick}>
       {icon && React.createElement(icon, { size: 16 })}
@@ -462,7 +871,11 @@ function App() {
         </thead>
         <tbody>
           {rows.map((b) => (
-            <tr key={b.id} onClick={() => setSelected(b)} className="click-row">
+            <tr
+              key={b.id}
+              onClick={() => openBooking(b)}
+              className="click-row"
+            >
               {admin ? (
                 <>
                   <td>
@@ -479,15 +892,28 @@ function App() {
                   <td>{b.requested}</td>
                   <td>{status(b.status)}</td>
                   <td className="row-actions">
-                    {button('Approve', () => decision(b.id, 'Approved'), 'text')}
-                    {button(
-                      'Reject',
-                      () => {
-                        setSelected(b);
-                        setModal('reject');
-                      },
-                      'text danger',
+                    {b.status === 'Pending' && (
+                      <>
+                        {button('Approve', () => decision(b.id, 'Approved'), 'text')}
+                        {button(
+                          'Reject',
+                          () => {
+                            setSelected(b);
+                            setModal('reject');
+                          },
+                          'text danger',
+                        )}
+                      </>
                     )}
+                    {['Confirmed', 'Approved'].includes(b.status) &&
+                      button(
+                        'Cancel',
+                        () => {
+                          setSelected(b);
+                          setModal('cancel');
+                        },
+                        'text danger',
+                      )}
                   </td>
                 </>
               ) : (
@@ -575,7 +1001,7 @@ function App() {
   const dashboard = () => (
     <>
       {heading(
-        `Good morning, Prachi`,
+        `${greeting()}, ${displayName.split(' ')[0]}`,
         'Manage your campus venue bookings.',
         button('Book a venue', () => go('Find a Venue'), 'primary', Plus),
       )}
@@ -671,6 +1097,7 @@ function App() {
             <div className="input-icon">
               <Search size={16} />
               <input
+                name="venueSearch"
                 placeholder="Try ‘Academic Block’"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
@@ -679,13 +1106,13 @@ function App() {
           )}
         </div>
         <div className="filter-grid">
-          {field('Event date', <input type="date" defaultValue="2026-10-21" />)}
-          {field('Start time', <input type="time" defaultValue="10:00" />)}
-          {field('End time', <input type="time" defaultValue="12:00" />)}
-          {field('Attendees', <input type="number" defaultValue="72" />)}
+          {field('Event date', <input name="searchDate" type="date" defaultValue="2026-10-21" />)}
+          {field('Start time', <input name="searchStartTime" type="time" defaultValue="10:00" />)}
+          {field('End time', <input name="searchEndTime" type="time" defaultValue="12:00" />)}
+          {field('Attendees', <input name="searchAttendees" type="number" defaultValue="72" />)}
           {field(
             'Event type',
-            <select>
+            <select name="searchEventType">
               <option>Presentation</option>
               <option>Workshop</option>
               <option>Meeting</option>
@@ -694,7 +1121,7 @@ function App() {
           )}
           {field(
             'Facilities',
-            <select>
+            <select name="searchFacilities">
               <option>Projector</option>
               <option>Video conferencing</option>
               <option>PA system</option>
@@ -717,7 +1144,7 @@ function App() {
         <b>{venues.length} venues</b>
         <label>
           Sort by{' '}
-          <select>
+          <select name="sortBy">
             <option>Best fit</option>
             <option>Capacity</option>
             <option>Name</option>
@@ -768,14 +1195,19 @@ function App() {
         <section className="panel form-panel">
           <h2>Event details</h2>
           <div className="form-grid">
-            {isAdmin && field('Booking for', <input placeholder="Name and college email" />)}
+            {isAdmin &&
+              field('Booking for', <input name="bookingFor" placeholder="Name and college email" />)}
             {field(
               'Event title',
-              <input id="eventTitle" placeholder="e.g. CSE Project Presentation" />,
+              <input
+                id="eventTitle"
+                name="eventTitle"
+                placeholder="e.g. CSE Project Presentation"
+              />,
             )}
             {field(
               'Event type',
-              <select>
+              <select name="eventType">
                 <option>Presentation</option>
                 <option>Workshop</option>
                 <option>Meeting</option>
@@ -784,28 +1216,44 @@ function App() {
             )}
             {field(
               'Purpose or description',
-              <textarea rows="3" placeholder="Briefly describe the event" />,
+              <textarea
+                name="eventDescription"
+                rows="3"
+                placeholder="Briefly describe the event"
+              />,
             )}
-            {field('Attendees', <input id="attendees" type="number" defaultValue="48" />)}
+            {field(
+              'Attendees',
+              <input id="attendees" name="attendees" type="number" defaultValue="48" />,
+            )}
             {field(
               'Venue',
-              <select value={venue} onChange={(e) => setVenue(e.target.value)}>
+              <select name="venue" value={venue} onChange={(e) => setVenue(e.target.value)}>
                 {venues.map((v) => (
-                  <option>{v.name}</option>
+                  <option key={v.name}>{v.name}</option>
                 ))}
               </select>,
             )}
-            {field('Event date', <input id="eventDate" type="date" defaultValue="2026-10-28" />)}
-            {field('Start time', <input id="startTime" type="time" defaultValue="10:00" />)}
-            {field('End time', <input id="endTime" type="time" defaultValue="12:00" />)}
+            {field(
+              'Event date',
+              <input id="eventDate" name="eventDate" type="date" defaultValue="2026-10-28" />,
+            )}
+            {field(
+              'Start time',
+              <input id="startTime" name="startTime" type="time" defaultValue="10:00" />,
+            )}
+            {field(
+              'End time',
+              <input id="endTime" name="endTime" type="time" defaultValue="12:00" />,
+            )}
             {field(
               'Required facilities',
               <div className="checkboxes">
                 <label>
-                  <input type="checkbox" defaultChecked /> Projector
+                  <input type="checkbox" name="facilityProjector" defaultChecked /> Projector
                 </label>
                 <label>
-                  <input type="checkbox" /> Video conferencing
+                  <input type="checkbox" name="facilityVideoConferencing" /> Video conferencing
                 </label>
               </div>,
             )}
@@ -958,14 +1406,17 @@ function App() {
   const bookingsPage = () => (
     <>
       {heading(
-        'My bookings',
-        'Track requests and manage your venue reservations.',
+        isAdmin ? 'Booking requests' : 'My bookings',
+        isAdmin
+          ? 'Review booking requests and manage venue reservations.'
+          : 'Track requests and manage your venue reservations.',
         button('Book a venue', () => go('Find a Venue'), 'primary', Plus),
       )}
       <div className="toolbar">
         <div className="tabs">
           {['All', 'Upcoming', 'Pending', 'Approved', 'Rejected', 'Cancelled'].map((t) => (
             <button
+              key={t}
               className={filter === t ? 'active' : ''}
               onClick={() => setFilter(t === 'Upcoming' ? 'All' : t)}
             >
@@ -977,18 +1428,19 @@ function App() {
           <div className="input-icon">
             <Search size={16} />
             <input
+              name="bookingSearch"
               placeholder="Search bookings"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
             />
           </div>
-          <input type="date" aria-label="Filter by date" />
+          <input name="bookingDateFilter" type="date" aria-label="Filter by date" />
         </div>
       </div>
-      {table(filteredBookings)}
+      {table(filteredBookings, isAdmin)}
       {selected && (
         <div className="detail-inline">
-          <button className="close-inline" onClick={() => setSelected(null)}>
+          <button className="close-inline" onClick={closeBookingDetails}>
             <X size={16} />
           </button>
           <b>{selected.event}</b>
@@ -999,7 +1451,7 @@ function App() {
             {status(selected.status)}
             {selected.reason && <p className="reason">Reason: {selected.reason}</p>}
           </div>
-          {selected.status === 'Confirmed' &&
+          {['Pending', 'Confirmed', 'Approved'].includes(selected.status) &&
             button('Cancel booking', () => setModal('cancel'), 'text danger', Ban)}
         </div>
       )}
@@ -1021,36 +1473,48 @@ function App() {
               <p>Authorization grants booking access; each booking still needs approval.</p>
             </div>
           </div>
-          {[
-            'Arjun Mehta · Club Head · Coding Club',
-            'Nisha Rao · Class Representative · CSE 3rd Year',
-            'Kabir Das · Club Head · Robotics Club',
-          ].map((n, i) => (
-            <div className="auth-request">
+          <div className="tabs">
+            {['pending', 'approved', 'rejected'].map((t) => (
+              <button
+                key={t}
+                className={authFilter === t ? 'active' : ''}
+                onClick={() => setAuthFilter(t)}
+              >
+                {t.charAt(0).toUpperCase() + t.slice(1)}
+              </button>
+            ))}
+          </div>
+          {authRequests.length === 0 && (
+            <div className="empty">
+              <ShieldCheck />
+              <b>No {authFilter} requests</b>
+              <span>Role requests will appear here.</span>
+            </div>
+          )}
+          {authRequests.map((r) => (
+            <div className="auth-request" key={r._id}>
               <div>
-                <b>{n.split(' · ')[0]}</b>
+                <b>{r.user?.name || 'Unknown user'}</b>
                 <span>
-                  {n.split(' · ').slice(1).join(' · ')} · Submitted {17 - i} Oct 2026
+                  {r.type} · {r.user?.email} · Submitted{' '}
+                  {new Date(r.createdAt).toLocaleDateString('en-IN')}
                 </span>
+                {r.status === 'rejected' && r.rejectionReason && (
+                  <small className="reason">Reason: {r.rejectionReason}</small>
+                )}
               </div>
               <div className="row-actions">
                 {button(
                   'Review',
                   () => {
-                    setSelected({
-                      requester: n.split(' · ')[0],
-                      role: n.split(' · ')[1],
-                      club: n.split(' · ')[2],
-                    });
+                    setReviewing(r);
+                    setRejectReason('');
                     setModal('authorization');
                   },
                   'secondary',
                 )}
-                {button(
-                  'Approve',
-                  () => notify(`Authorization approved for ${n.split(' · ')[0]}`),
-                  'text',
-                )}
+                {r.status === 'pending' &&
+                  button('Approve', () => reviewRequest(r._id, 'approve'), 'text')}
               </div>
             </div>
           ))}
@@ -1072,10 +1536,17 @@ function App() {
           <div className="notice">
             Your authorization is approved. Every booking request still requires admin approval.
           </div>
-          {field('Authorized class or club', <input defaultValue="CSE Coding Club" />)}
+          {field(
+            'Authorized class or club',
+            <input name="authorizedClub" defaultValue="CSE Coding Club" />,
+          )}
           {field(
             'Supporting information',
-            <textarea rows="3" defaultValue="Student club lead for the 2026–27 academic year." />,
+            <textarea
+              name="supportingInfo"
+              rows="3"
+              defaultValue="Student club lead for the 2026–27 academic year."
+            />,
           )}
           {button('Update details', () => notify('Authorization details updated'), 'primary')}
         </section>
@@ -1104,15 +1575,18 @@ function App() {
               <div className="form-grid">
                 {field(
                   'Requested role',
-                  <select value={role} onChange={(e) => setRole(e.target.value)}>
+                  <select name="requestedRole" value={role} onChange={(e) => setRole(e.target.value)}>
                     <option>Class Representative</option>
                     <option>Club Head</option>
                   </select>,
                 )}
-                {field('Class or club', <input placeholder="e.g. CSE 3rd Year / Coding Club" />)}
+                {field(
+                  'Class or club',
+                  <input name="classOrClub" placeholder="e.g. CSE 3rd Year / Coding Club" />,
+                )}
                 {field(
                   'Academic year',
-                  <select>
+                  <select name="academicYear">
                     <option>2026–27</option>
                     <option>2025–26</option>
                   </select>,
@@ -1120,6 +1594,7 @@ function App() {
                 {field(
                   'Supporting information',
                   <textarea
+                    name="supportingInfo"
                     rows="4"
                     placeholder="Describe your role and include relevant details"
                   />,
@@ -1137,19 +1612,24 @@ function App() {
     <>
       {heading(
         'Admin overview',
-        'Operations at a glance for Sunday, 18 October 2026.',
+        `Operations at a glance for ${new Date().toLocaleDateString('en-IN', {
+          weekday: 'long',
+          day: 'numeric',
+          month: 'long',
+          year: 'numeric',
+        })}.`,
         button('Create booking', () => go('Create Booking'), 'primary', Plus),
       )}
       <div className="admin-kpis">
         <div>
           <span>Total venues</span>
-          <b>18</b>
-          <small>16 active · 2 inactive</small>
+          <b>{venues.length}</b>
+          <small>{venues.length} active</small>
         </div>
         <div>
           <span>Today’s bookings</span>
-          <b>6</b>
-          <small>Across 5 venues</small>
+          <b>{todaysBookings.length}</b>
+          <small>Across {new Set(todaysBookings.map((b) => b.venue)).size} venues</small>
         </div>
         <div>
           <span>Booking requests</span>
@@ -1158,7 +1638,7 @@ function App() {
         </div>
         <div>
           <span>Authorization requests</span>
-          <b>3</b>
+          <b>{authRequests.length}</b>
           <small>Require your review</small>
         </div>
       </div>
@@ -1184,19 +1664,24 @@ function App() {
             </div>
             {button('View all', () => go('Authorization Requests'), 'text')}
           </div>
-          {[
-            'Arjun Mehta · Coding Club',
-            'Nisha Rao · CSE 3rd Year',
-            'Kabir Das · Robotics Club',
-          ].map((n, i) => (
-            <div className="auth-request">
+          {authRequests.length === 0 && <p className="muted">No pending authorization requests.</p>}
+          {authRequests.slice(0, 3).map((r) => (
+            <div className="auth-request" key={r._id}>
               <div>
-                <b>{n.split(' · ')[0]}</b>
-                <span>
-                  {n.split(' · ')[1]} · {i === 1 ? 'Class Representative' : 'Club Head'}
-                </span>
+                <b>{r.user?.name || 'Unknown user'}</b>
+                <span>{r.type}</span>
               </div>
-              <div>{button('Review', () => setModal('authorization'), 'secondary')}</div>
+              <div>
+                {button(
+                  'Review',
+                  () => {
+                    setReviewing(r);
+                    setRejectReason('');
+                    setModal('authorization');
+                  },
+                  'secondary',
+                )}
+              </div>
             </div>
           ))}
         </section>
@@ -1204,19 +1689,16 @@ function App() {
           <div className="section-head">
             <div>
               <h2>Today’s schedule</h2>
-              <p>18 October · All venues</p>
+              <p>{new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long' })} · All venues</p>
             </div>
             {button('Calendar', () => go('Booking Calendar'), 'text')}
           </div>
-          {[
-            ['09:00', 'Faculty orientation', 'Main Auditorium'],
-            ['11:30', 'Research committee', 'Conference Room A'],
-            ['14:00', 'Lab induction', 'Computer Lab 1'],
-          ].map((x) => (
-            <div className="schedule-row">
-              <b>{x[0]}</b>
-              <span>{x[1]}</span>
-              <small>{x[2]}</small>
+          {todaysBookings.length === 0 && <p className="muted">No bookings scheduled for today.</p>}
+          {todaysBookings.map((b) => (
+            <div className="schedule-row" key={b.id}>
+              <b>{b.time.split(' – ')[0]}</b>
+              <span>{b.event}</span>
+              <small>{b.venue}</small>
             </div>
           ))}
         </section>
@@ -1234,18 +1716,19 @@ function App() {
         <div className="input-icon">
           <Search size={16} />
           <input
+            name="venueAdminSearch"
             placeholder="Search venues"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
         </div>
-        <select>
+        <select name="capacityFilter">
           <option>All capacities</option>
           <option>Under 50</option>
           <option>50–100</option>
           <option>100+</option>
         </select>
-        <select>
+        <select name="facilityFilter">
           <option>All facilities</option>
           <option>Projector</option>
           <option>Accessible</option>
@@ -1256,7 +1739,7 @@ function App() {
           <thead>
             <tr>
               {['Venue', 'Location', 'Capacity', 'Facilities', 'Status', 'Actions'].map((x) => (
-                <th>{x}</th>
+                <th key={x}>{x}</th>
               ))}
             </tr>
           </thead>
@@ -1264,7 +1747,7 @@ function App() {
             {venues
               .filter((v) => v.name.toLowerCase().includes(query.toLowerCase()))
               .map((v) => (
-                <tr>
+                <tr key={v.name}>
                   <td>
                     <b>{v.name}</b>
                   </td>
@@ -1306,27 +1789,41 @@ function App() {
       {heading(
         'Booking calendar',
         'Review venue schedules and identify busy periods.',
-        button('Today', () => notify('Showing 18 October 2026')),
+        button('Today', () => {
+          setWeekOffset(0);
+          notify('Showing this week');
+        }),
       )}
       <div className="calendar-toolbar">
         <div className="month-head">
-          <button className="icon-button" onClick={() => setMonth(month - 1)}>
+          <button className="icon-button" onClick={() => setWeekOffset(weekOffset - 1)}>
             <ChevronLeft />
           </button>
-          <b>{['October', 'November', 'December'][((month % 3) + 3) % 3]} 2026</b>
-          <button className="icon-button" onClick={() => setMonth(month + 1)}>
+          <b>
+            {weekDays(weekOffset)[0].toLocaleDateString('en-IN', {
+              month: 'long',
+              year: 'numeric',
+            })}
+          </b>
+          <button className="icon-button" onClick={() => setWeekOffset(weekOffset + 1)}>
             <ChevronRight />
           </button>
         </div>
         <div className="tabs">
           {['Day', 'Week', 'Month'].map((t, i) => (
-            <button className={i === 1 ? 'active' : ''}>{t}</button>
+            <button key={t} className={i === 1 ? 'active' : ''}>
+              {t}
+            </button>
           ))}
         </div>
-        <select>
+        <select
+          name="calendarVenue"
+          value={calendarVenue}
+          onChange={(e) => setCalendarVenue(e.target.value)}
+        >
           <option>All venues</option>
           {venues.map((v) => (
-            <option>{v.name}</option>
+            <option key={v.name}>{v.name}</option>
           ))}
         </select>
       </div>
@@ -1345,40 +1842,45 @@ function App() {
             '16:00',
             '17:00',
           ].map((t) => (
-            <span>{t}</span>
+            <span key={t}>{t}</span>
           ))}
         </div>
-        {['Mon 19', 'Tue 20', 'Wed 21', 'Thu 22', 'Fri 23', 'Sat 24', 'Sun 25'].map((day, i) => (
-          <div className="day-col">
-            <b>{day}</b>
-            <div className="day-slots">
-              {i === 2 && (
-                <div className="calendar-event" style={{ top: '20%', height: '19%' }}>
-                  <b>CSE Project Presentation</b>
-                  <span>Seminar Hall 2 · 10:00</span>
-                </div>
-              )}
-              {i === 4 && (
-                <div
-                  className="calendar-event secondary-event"
-                  style={{ top: '60%', height: '18%' }}
-                >
-                  <b>Web Development Workshop</b>
-                  <span>Computer Lab 1 · 14:00</span>
-                </div>
-              )}
-              {i === 6 && (
-                <div
-                  className="calendar-event secondary-event"
-                  style={{ top: '35%', height: '14%' }}
-                >
-                  <b>Coding Club Meetup</b>
-                  <span>Conference Room A · 11:00</span>
-                </div>
-              )}
+        {weekDays(weekOffset).map((d) => {
+          const iso = toISODate(d);
+          return (
+            <div className="day-col" key={iso}>
+              <b>
+                {d.toLocaleDateString('en-US', { weekday: 'short' })} {d.getDate()}
+              </b>
+              <div className="day-slots">
+                {bookings
+                  .filter(
+                    (b) =>
+                      b.date === iso &&
+                      ['Confirmed', 'Approved'].includes(b.status) &&
+                      (calendarVenue === 'All venues' || b.venue === calendarVenue),
+                  )
+                  .map((b) => {
+                    const [from, to] = b.time.split(' – ');
+                    const top = ((minutesOf(from) - 480) / 600) * 100;
+                    const height = ((minutesOf(to) - minutesOf(from)) / 600) * 100;
+                    return (
+                      <div
+                        key={b.id}
+                        className={`calendar-event${b.status === 'Approved' ? ' secondary-event' : ''}`}
+                        style={{ top: `${Math.max(top, 0)}%`, height: `${height}%` }}
+                      >
+                        <b>{b.event}</b>
+                        <span>
+                          {b.venue} · {from}
+                        </span>
+                      </div>
+                    );
+                  })}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </>
   );
@@ -1388,9 +1890,9 @@ function App() {
         'Analytics',
         'Booking patterns and venue utilization.',
         <div className="toolbar">
-          <input type="date" defaultValue="2026-10-01" />
+          <input name="analyticsFrom" type="date" aria-label="From date" defaultValue="2026-10-01" />
           <span>to</span>
-          <input type="date" defaultValue="2026-10-31" />
+          <input name="analyticsTo" type="date" aria-label="To date" defaultValue="2026-10-31" />
         </div>,
       )}
       <div className="analytics-grid">
@@ -1398,13 +1900,13 @@ function App() {
           <div className="section-head">
             <div>
               <h2>Booking volume</h2>
-              <p>Confirmed and approved bookings · October 2026</p>
+              <p>Confirmed and approved bookings · {monthLabel}</p>
             </div>
           </div>
           <div className="bar-chart">
-            {[12, 19, 15, 27, 22, 32, 26, 36, 28, 40, 33, 48].map((n, i) => (
-              <div>
-                <span style={{ height: `${n * 2}px` }}></span>
+            {volumeBars.map((n, i) => (
+              <div key={i}>
+                <span style={{ height: `${volumeMax ? Math.round((n / volumeMax) * 96) : 0}px` }}></span>
                 <small>
                   {['1', '3', '5', '7', '9', '11', '13', '15', '17', '19', '21', '23'][i]}
                 </small>
@@ -1419,13 +1921,8 @@ function App() {
         <section className="panel">
           <h2>Venue utilization</h2>
           <p className="muted">Booked hours as a share of available hours</p>
-          {[
-            ['Main Auditorium', 68],
-            ['Seminar Hall 2', 56],
-            ['Computer Lab 1', 42],
-            ['Conference Room A', 31],
-          ].map(([name, n]) => (
-            <div className="util-row">
+          {venueUtilization.map(([name, n]) => (
+            <div className="util-row" key={name}>
               <span>{name}</span>
               <div className="progress">
                 <i style={{ width: `${n}%` }} />
@@ -1437,13 +1934,8 @@ function App() {
         <section className="panel">
           <h2>Most booked venues</h2>
           <div className="rank-list">
-            {[
-              ['Seminar Hall 2', '34 bookings'],
-              ['Computer Lab 1', '28 bookings'],
-              ['Main Auditorium', '21 bookings'],
-              ['Classroom C-204', '17 bookings'],
-            ].map((x, i) => (
-              <div>
+            {mostBooked.map((x, i) => (
+              <div key={x[0]}>
                 <b>{String(i + 1).padStart(2, '0')}</b>
                 <span>{x[0]}</span>
                 <small>{x[1]}</small>
@@ -1454,13 +1946,8 @@ function App() {
         <section className="panel">
           <h2>Booking status</h2>
           <div className="status-breakdown">
-            {[
-              ['Confirmed', 18],
-              ['Approved', 24],
-              ['Pending', 7],
-              ['Rejected', 4],
-            ].map(([n, v]) => (
-              <div>
+            {statusBreakdown.map(([n, v]) => (
+              <div key={n}>
                 {status(n)}
                 <b>{v}</b>
               </div>
@@ -1517,7 +2004,7 @@ function App() {
                   aria-selected={authView === 'signin'}
                   className={authView === 'signin' ? 'active' : ''}
                   onClick={() => {
-                    setAuthView('signin');
+                    go('Sign in');
                     setLoginError('');
                   }}
                 >
@@ -1528,8 +2015,7 @@ function App() {
                   aria-selected={authView === 'signup'}
                   className={authView === 'signup' ? 'active' : ''}
                   onClick={() => {
-                    setAuthView('signup');
-                    setSignupStep('details');
+                    go('Sign up');
                     setLoginError('');
                   }}
                 >
@@ -1546,6 +2032,7 @@ function App() {
                 {field(
                   'College email',
                   <input
+                    name="recoveryEmail"
                     type="email"
                     autoComplete="email"
                     placeholder="name@college.edu"
@@ -1586,6 +2073,7 @@ function App() {
                     setRecovering(false);
                     setRecoverySent(false);
                     setLoginError('');
+                    go('Sign in');
                   }}
                 >
                   Back to sign in
@@ -1601,6 +2089,7 @@ function App() {
                 {field(
                   'Email verification code',
                   <input
+                    name="otpCode"
                     inputMode="numeric"
                     autoComplete="one-time-code"
                     maxLength="6"
@@ -1670,7 +2159,11 @@ function App() {
                 )}
                 {field(
                   'College role',
-                  <select value={signupRole} onChange={(e) => setSignupRole(e.target.value)}>
+                  <select
+                    name="signupRole"
+                    value={signupRole}
+                    onChange={(e) => setSignupRole(e.target.value)}
+                  >
                     <option>Faculty</option>
                     <option>Class Representative</option>
                     <option>Club Head</option>
@@ -1726,6 +2219,7 @@ function App() {
                 {field(
                   'College email',
                   <input
+                    name="email"
                     type="email"
                     autoComplete="email"
                     placeholder="name@college.edu"
@@ -1740,6 +2234,7 @@ function App() {
                   'Password',
                   <div className="password-wrap">
                     <input
+                      name="password"
                       type={showPassword ? 'text' : 'password'}
                       autoComplete="current-password"
                       placeholder="Enter your password"
@@ -1762,12 +2257,12 @@ function App() {
                 )}
                 <div className="login-options">
                   <label>
-                    <input type="checkbox" /> Remember me
+                    <input type="checkbox" name="rememberMe" /> Remember me
                   </label>
                   <button
                     className="text-button"
                     onClick={() => {
-                      setRecovering(true);
+                      go('Forgot password');
                       setLoginError('');
                     }}
                   >
@@ -1829,11 +2324,7 @@ function App() {
                         <button
                           className="notification-main"
                           aria-label={`Open details for ${booking.event}`}
-                          onClick={() => {
-                            setPage('My Bookings');
-                            setSelected(booking);
-                            setMobileOpen(false);
-                          }}
+                          onClick={() => openBooking(booking)}
                         >
                           <span className="notification-copy">
                             <strong>{booking.event}</strong>
@@ -1871,10 +2362,20 @@ function App() {
           <>
             {heading('Profile', 'Your college account details.')}
             <section className="panel auth-panel">
-              {field('Full name', <input defaultValue="Prachi Sharma" />)}
-              {field('College email', <input defaultValue="prachi.sharma@college.edu" />)}
-              {field('Role', <input value={role} readOnly />)}
-              {button('Save changes', () => notify('Profile updated'), 'primary')}
+              {field(
+                'Full name',
+                <input
+                  name="profileName"
+                  value={profileDraft ?? currentUser.name}
+                  onChange={(e) => setProfileDraft(e.target.value)}
+                />,
+              )}
+              {field(
+                'College email',
+                <input name="profileEmail" value={currentUser.email} readOnly />,
+              )}
+              {field('Role', <input name="profileRole" value={role} readOnly />)}
+              {button('Save changes', saveProfile, 'primary')}
             </section>
           </>
         );
@@ -1884,9 +2385,18 @@ function App() {
   };
 
   const content = renderPage();
+  if (!sessionReady) {
+    return (
+      <div className="login-screen">
+        <div className="login-card">
+          <p>Loading…</p>
+        </div>
+      </div>
+    );
+  }
   return (
     <>
-      {page === 'Sign in' || page === 'Access Pending' ? (
+      {['Sign in', 'Sign up', 'Forgot password', 'Access Pending'].includes(page) ? (
         login()
       ) : (
         <div className="app-shell">
@@ -1917,22 +2427,65 @@ function App() {
                     {iconName}
                   </span>
                   <span>{name}</span>
-                  {name === 'Booking Requests' && isAdmin && <i className="nav-count">1</i>}
+                  {name === 'Booking Requests' && isAdmin && pendingBookings > 0 && (
+                    <i className="nav-count">{pendingBookings}</i>
+                  )}
                 </button>
               ))}
             </nav>
             <div className="sidebar-bottom">
-              <button className="nav-item" aria-label="Sign out" onClick={() => go('Sign in')}>
-                <LogOut size={18} />
-                <span>Sign out</span>
-              </button>
-              <div className="profile-mini">
-                <div className="avatar">PS</div>
-                <div>
-                  <b>Prachi Sharma</b>
-                  <span>{role}</span>
-                </div>
-              </div>
+              {isSignedIn ? (
+                <>
+                  <button className="nav-item" onClick={signOut}>
+                    <LogOut size={18} />
+                    <span>Sign out</span>
+                  </button>
+                  <div
+                    className={`profile-mini ${profileOpen ? 'open' : ''}`}
+                    onClick={() => setProfileOpen(!profileOpen)}
+                  >
+                    <div className="avatar">{initials}</div>
+                    <div>
+                      <b>{displayName}</b>
+                      <span>{role}</span>
+                    </div>
+                    <ChevronDown
+                      size={15}
+                      className={`profile-chevron ${profileOpen ? 'rotated' : ''}`}
+                    />
+                    {profileOpen && (
+                      <div className="profile-dropdown" onClick={(e) => e.stopPropagation()}>
+                        <div className="profile-dropdown-label">{displayName}</div>
+                        <button
+                          className="profile-dropdown-item"
+                          onClick={() => {
+                            go('Profile');
+                            setProfileOpen(false);
+                          }}
+                        >
+                          Profile
+                        </button>
+                        <button
+                          className="profile-dropdown-item"
+                          onClick={() => {
+                            setProfileOpen(false);
+                            signOut();
+                          }}
+                        >
+                          Sign out
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <button className="nav-item" onClick={() => go('Sign in')}>
+                  <span className="material-symbols-outlined nav-icon" aria-hidden="true">
+                    login
+                  </span>
+                  <span>Sign in</span>
+                </button>
+              )}
             </div>
           </aside>
           {mobileOpen && (
@@ -1968,15 +2521,23 @@ function App() {
                 <Menu />
               </button>
               <div className="top-actions">
-                <button className="icon-button notify" onClick={() => go('Notifications')}>
-                  <Bell size={18} />
-                  <i />
-                </button>
-                <div className="top-profile">
-                  <div className="avatar">PS</div>
-                  <span>Prachi Sharma</span>
-                  <ChevronDown size={14} />
-                </div>
+                {isSignedIn ? (
+                  <>
+                    <button className="icon-button notify" onClick={() => go('Notifications')}>
+                      <Bell size={18} />
+                      <i />
+                    </button>
+                    <div className="top-profile">
+                      <div className="avatar">{initials}</div>
+                      <span>{displayName}</span>
+                      <ChevronDown size={14} />
+                    </div>
+                  </>
+                ) : (
+                  <button className="button primary" onClick={() => go('Sign in')}>
+                    Sign in
+                  </button>
+                )}
               </div>
             </header>
             <main className="main-content">{content}</main>
@@ -2002,6 +2563,7 @@ function App() {
                 <label className="field">
                   <span>Reason for rejection</span>
                   <textarea
+                    name="rejectionReason"
                     rows="4"
                     placeholder="e.g. Venue is reserved for examinations on this date."
                   />
@@ -2010,7 +2572,12 @@ function App() {
                   {button('Cancel', () => setModal(''))}
                   {button(
                     'Reject request',
-                    () => decision(selected.id, 'Rejected'),
+                    () =>
+                      decision(
+                        selected.id,
+                        'Rejected',
+                        document.querySelector('[name="rejectionReason"]')?.value,
+                      ),
                     'danger-button',
                   )}
                 </div>
@@ -2062,31 +2629,54 @@ function App() {
                 </div>
               </>
             ) : modal === 'authorization' ? (
-              <>
-                <h2>Authorization request</h2>
-                <p>Arjun Mehta · Coding Club Head</p>
-                <div className="notice">
-                  Submitted 17 Oct 2026. Supports the 2026–27 club leadership roster.
-                </div>
-                <div className="modal-actions">
-                  {button(
-                    'Reject',
-                    () => {
-                      setModal('');
-                      notify('Authorization request rejected');
-                    },
-                    'danger-button',
+              reviewing && (
+                <>
+                  <h2>Authorization request</h2>
+                  <p>
+                    {reviewing.user?.name} · {reviewing.type}
+                  </p>
+                  <div className="notice">
+                    {reviewing.user?.email} · Submitted{' '}
+                    {new Date(reviewing.createdAt).toLocaleDateString('en-IN')}
+                  </div>
+                  {reviewing.status === 'pending' ? (
+                    <>
+                      <label className="field">
+                        <span>Reason (required to reject)</span>
+                        <textarea
+                          name="authRejectReason"
+                          rows="3"
+                          value={rejectReason}
+                          onChange={(e) => setRejectReason(e.target.value)}
+                        />
+                      </label>
+                      <div className="modal-actions">
+                        {button(
+                          'Reject',
+                          () => {
+                            if (!rejectReason.trim()) {
+                              notify('Enter a rejection reason');
+                              return;
+                            }
+                            reviewRequest(reviewing._id, 'reject', rejectReason.trim());
+                          },
+                          'danger-button',
+                        )}
+                        {button(
+                          reviewBusy ? 'Please wait…' : 'Approve authorization',
+                          () => reviewRequest(reviewing._id, 'approve'),
+                          'primary',
+                        )}
+                      </div>
+                    </>
+                  ) : (
+                    <p>
+                      Status: {reviewing.status}
+                      {reviewing.rejectionReason ? ` · Reason: ${reviewing.rejectionReason}` : ''}
+                    </p>
                   )}
-                  {button(
-                    'Approve authorization',
-                    () => {
-                      setModal('');
-                      notify('Authorization approved');
-                    },
-                    'primary',
-                  )}
-                </div>
-              </>
+                </>
+              )
             ) : (
               <>
                 <h2>
@@ -2106,14 +2696,31 @@ function App() {
                     {field(
                       'Venue name',
                       <input
+                        name="venueName"
                         defaultValue={modal === 'edit-venue' ? venue : ''}
                         placeholder="Venue name"
                       />,
                     )}
-                    {field('Location', <input placeholder="Building and floor" />)}
-                    {field('Capacity', <input type="number" placeholder="Maximum attendees" />)}
-                    {field('Facilities', <input placeholder="Projector, whiteboard" />)}
-                    {field('Description', <textarea rows="2" placeholder="Venue description" />)}
+                    {field(
+                      'Location',
+                      <input name="venueLocation" placeholder="Building and floor" />,
+                    )}
+                    {field(
+                      'Capacity',
+                      <input name="venueCapacity" type="number" placeholder="Maximum attendees" />,
+                    )}
+                    {field(
+                      'Facilities',
+                      <input name="venueFacilities" placeholder="Projector, whiteboard" />,
+                    )}
+                    {field(
+                      'Description',
+                      <textarea
+                        name="venueDescription"
+                        rows="2"
+                        placeholder="Venue description"
+                      />,
+                    )}
                   </div>
                 )}
                 <div className="modal-actions">
