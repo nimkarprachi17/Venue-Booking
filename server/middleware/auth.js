@@ -14,7 +14,7 @@ const requireAuth = async (req, res, next) => {
     return res.status(401).json({ message: 'Authentication required' });
   }
   try {
-    const payload = jwt.verify(token, process.env.JWT_SECRET);
+    const payload = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
     const user = await User.findById(payload.id).select('-passwordHash');
     if (!user) {
       return res.status(401).json({ message: 'User no longer exists' });
@@ -31,7 +31,7 @@ const optionalAuth = async (req, res, next) => {
   const token = getToken(req);
   if (!token) return next();
   try {
-    const payload = jwt.verify(token, process.env.JWT_SECRET);
+    const payload = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
     req.user = await User.findById(payload.id).select('-passwordHash');
   } catch (err) {
     // an invalid token is treated as no token

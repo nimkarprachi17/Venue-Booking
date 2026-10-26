@@ -13,7 +13,7 @@ const refreshCookieOptions = {
     maxAge: 7 * 24 * 60 * 60 * 1000,
 };
 
-
+//401 -> session refreshes i.e access token gets generated again  /api/auth/refresh
 //register
 const userRegister = async (req, res) => {
     try {
@@ -21,6 +21,7 @@ const userRegister = async (req, res) => {
         if (!fullName || !email || !password) {
             return res.status(400).json({ message: "Field is empty" });
         }
+
 
         const existing = await userModel.findOne({ email });
         const requestmodel=await authRequest.findOne({email});
@@ -31,8 +32,8 @@ const userRegister = async (req, res) => {
                     user: { id: existing._id, email: existing.email }
                 });
             }
-            await authRequest.deleteMany({ user: existing._id });
-            await userModel.findOneAndDelete({ email });
+            await authRequest.deleteMany({ user: existing._id });  //possibility ki like pehle user ne register kiya hoga but reject ho gaya
+            await userModel.findOneAndDelete({ email });   // and now firse register karne ka try kar raha hai
         }
 
         const hashed = await bcrypt.hash(password, 10);
@@ -42,6 +43,7 @@ const userRegister = async (req, res) => {
             email,
             passwordHash: hashed,
             role,
+            createdAt:new Date(),
         });
 
         await otpModel.findOneAndDelete({ email });
@@ -180,7 +182,14 @@ const cancelRegistration = async (req, res) => {
 const userLogin = async (req, res) => {
     const { email, password } = req.body;
     try {
-        const user = await userModel.findOne({ email })
+        if(!email || !password){    //validation user input 
+            return res.status(400).json({
+                success:false,
+                message:"Username or Password is required"
+            })
+        }
+      //  const nemail=email=email.trim().toLowerCase();  //trim- removes extra space from beginning and ending
+        const user = await userModel.findOne({ email })   //find the user
         if (!user || !user.passwordHash) {
             return res.status(400).json({
                 success: false,
@@ -188,7 +197,7 @@ const userLogin = async (req, res) => {
             })
         }
 
-        const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
+        const isPasswordValid = await bcrypt.compare(password, user.passwordHash);  //Verification 
         if (!isPasswordValid) {
             return res.status(400).json({
                 success: false,
@@ -220,23 +229,30 @@ const userLogin = async (req, res) => {
         if (authorizationStatus==="approved") {
             accessToken = jwt.sign(
                 { id: user._id, role: user.role },
-                process.env.JWT_SECRET,
+                process.env.ACCESS_TOKEN_SECRET,
                 { expiresIn: '15m' }
             )
 
             const refreshToken = jwt.sign(
-                { id: user._id },
-                process.env.JWT_SECRET,
+                { id: user._id,role:user.role },
+                process.env.REFRESH_TOKEN_SECRET,
                 { expiresIn: '7d' }
             )
 
             res.cookie("refreshToken", refreshToken, refreshCookieOptions)
         }
-
+        req.user={
+            name:user.name,
+            role:user.role,
+            email:user.email,
+            id:user._id
+        }
+        
         return res.status(200).json({
             success: true,
             message: authorizationStatus === "approved" ? "Login successful" : "Account awaiting approval",
             user: {
+                name:user.name,
                 id: user._id,
                 email: user.email,
                 name: user.name,
@@ -248,7 +264,7 @@ const userLogin = async (req, res) => {
 
     } catch (error) {
         console.error("Login error:", error);
-
+        console.log("Login me error")
         return res.status(500).json({
             success: false,
             message: "Internal server error"
@@ -264,7 +280,7 @@ const refreshAccessToken=async(req,res)=>{
                 message:"No session"
             })
         }
-        const payload=await jwt.verify(refreshToken, process.env.JWT_SECRET)
+        const payload=await jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET)
 
         const user=await userModel.findOne({_id:payload.id})
 
@@ -275,17 +291,18 @@ const refreshAccessToken=async(req,res)=>{
             })
         }
         const accessToken=jwt.sign({
-            id:payload.id
-        },process.env.JWT_SECRET,{
+            id:payload.id, role:payload.role
+        },process.env.ACCESS_TOKEN_SECRET,{
             expiresIn:"15m"
         })
 
-        res.cookie("refreshToken", jwt.sign({id:user._id}, process.env.JWT_SECRET, {expiresIn:"7d"}), refreshCookieOptions)
+        res.cookie("refreshToken", jwt.sign({id:user._id, role:user.role}, process.env.REFRESH_TOKEN_SECRET, {expiresIn:"7d"}), refreshCookieOptions)
 
         return res.status(200).json({
             accessToken:accessToken,
             user:{
                 id:user._id,
+                name:user.name,
                 email:user.email,
                 name:user.name,
                 role:user.role,
