@@ -1,4 +1,5 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;650;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined');
 :root {
   /* Shared color and type tokens for the interface. */
   font-family:
@@ -62,6 +63,7 @@ textarea:focus-visible {
   display: flex;
   flex-direction: column;
   padding: 22px 14px 14px;
+  transition: transform 0.2s ease;
 }
 .brand {
   display: flex;
@@ -116,6 +118,29 @@ nav {
   padding: 0 11px;
   border-radius: 4px;
   font-size: 13px;
+}
+.material-symbols-outlined.nav-icon {
+  display: inline-flex;
+  flex: none;
+  width: 18px;
+  height: 18px;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Material Symbols Outlined';
+  font-size: 20px;
+  font-weight: 400;
+  font-style: normal;
+  line-height: 1;
+  letter-spacing: normal;
+  white-space: nowrap;
+  font-feature-settings: 'liga';
+  -webkit-font-feature-settings: 'liga';
+  -webkit-font-smoothing: antialiased;
+  font-variation-settings:
+    'FILL' 0,
+    'wght' 400,
+    'GRAD' 0,
+    'opsz' 20;
 }
 .nav-item:hover {
   background: #f7f8fa;
@@ -243,6 +268,13 @@ nav {
 .workspace {
   margin-left: 232px;
   min-height: 100vh;
+  transition: margin-left 0.18s ease;
+}
+.sidebar.hidden {
+  transform: translateX(-100%);
+}
+.workspace.sidebar-hidden {
+  margin-left: 0;
 }
 .topbar {
   height: 58px;
@@ -255,17 +287,6 @@ nav {
   position: sticky;
   top: 0;
   z-index: 3;
-}
-.breadcrumb {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  color: #9297a0;
-  font-size: 12px;
-}
-.breadcrumb b {
-  font-weight: 550;
-  color: #353941;
 }
 .top-actions {
   display: flex;
@@ -530,6 +551,123 @@ td small {
 .status.not.requested {
   color: #5e6672;
   background: #f0f2f4;
+}
+.notification-panel {
+  max-width: 1040px;
+  padding: 0 22px;
+}
+.notification-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 19px 0 14px;
+  border-bottom: 1px solid var(--line);
+}
+.notification-panel-head > div {
+  display: grid;
+  gap: 4px;
+}
+.notification-panel-head h2 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 16px;
+  font-weight: 600;
+}
+.notification-panel-head p,
+.notification-panel-head > span {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+.notification-panel-head > span {
+  flex: none;
+  padding: 5px 8px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: #fff;
+}
+.notification-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 18px;
+  padding: 15px 0;
+  border-bottom: 1px solid #eff0f2;
+}
+.notification-row:last-child {
+  border-bottom: 0;
+}
+.notification-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.notification-main:hover strong {
+  color: var(--accent);
+}
+.notification-main:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+  border-radius: 2px;
+}
+.notification-main > svg {
+  flex: none;
+  color: #777d86;
+}
+.notification-copy {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+.notification-copy strong {
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+.notification-copy > span {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+.notification-copy .notification-reason {
+  color: var(--red);
+}
+.notification-meta {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  white-space: nowrap;
+}
+.notification-time {
+  color: var(--muted);
+  font-size: 11px;
+}
+.notification-empty {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  padding: 38px 16px;
+  text-align: center;
+}
+.notification-empty b {
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 600;
+}
+.notification-empty span {
+  color: var(--muted);
+  font-size: 12px;
 }
 .reason {
   color: var(--red) !important;
@@ -1734,8 +1872,26 @@ dd {
 .toast svg {
   color: #80c791;
 }
-.mobile-menu,
+.nav-toggle {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  margin-right: 12px;
+  padding: 5px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #4e535a;
+}
+.nav-toggle:hover {
+  background: #f7f8fa;
+}
 .mobile-close {
+  display: none;
+}
+.sidebar-overlay {
   display: none;
 }
 /* Responsive layouts */
@@ -1782,9 +1938,22 @@ dd {
     transition: transform 0.2s;
     box-shadow: none;
   }
+  .workspace.sidebar-hidden {
+    margin-left: 0;
+  }
   .sidebar.open {
     transform: translateX(0);
     box-shadow: 6px 0 24px #0002;
+  }
+  .sidebar-overlay {
+    display: block;
+    position: fixed;
+    z-index: 4;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border: 0;
+    background: #20212466;
   }
   .mobile-close {
     display: block;
@@ -1803,7 +1972,7 @@ dd {
     height: 54px;
     padding: 0 14px;
   }
-  .mobile-menu {
+  .nav-toggle {
     display: grid;
     place-items: center;
     border: 0;
@@ -1811,11 +1980,6 @@ dd {
     padding: 5px;
     margin-right: 8px;
     color: #4e535a;
-  }
-  .breadcrumb {
-    margin-right: auto;
-    font-size: 11px;
-    gap: 6px;
   }
   .top-actions {
     gap: 8px;
@@ -2047,5 +2211,35 @@ dd {
   .signup-card .field input,
   .signup-card .field select {
     height: 36px;
+  }
+}
+@media (max-width: 720px) {
+  .panel.notification-panel {
+    padding: 0 14px;
+  }
+  .notification-panel-head {
+    align-items: flex-start;
+    padding: 15px 0 12px;
+  }
+  .notification-panel-head h2 {
+    font-size: 15px;
+  }
+  .notification-panel-head > span {
+    padding: 4px 6px;
+    font-size: 11px;
+  }
+  .notification-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 9px;
+    padding: 13px 0;
+  }
+  .notification-main {
+    gap: 10px;
+  }
+  .notification-copy strong {
+    font-size: 13px;
+  }
+  .notification-meta {
+    justify-content: space-between;
   }
 }

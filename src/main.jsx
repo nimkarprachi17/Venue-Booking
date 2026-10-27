@@ -1,11 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import {
-  LayoutDashboard,
   Search,
   CalendarDays,
   Bell,
-  UserRound,
   Menu,
   X,
   ChevronDown,
@@ -18,9 +16,7 @@ import {
   Check,
   AlertCircle,
   Building2,
-  ClipboardList,
   ShieldCheck,
-  BarChart3,
   LogOut,
   ArrowRight,
   Pencil,
@@ -66,7 +62,21 @@ const normalizeBooking = (b) => ({
   requester: b.bookedFor || b.requestedBy?.name || 'Unknown',
   role: b.requestedBy?.role || '',
   attendees: b.attendees,
+  updatedAt: b.updatedAt || b.createdAt || new Date().toISOString(),
 });
+const formatEventDate = (dateString) =>
+  new Intl.DateTimeFormat('en-GB', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+  }).format(new Date(`${dateString}T12:00:00`));
+const formatActivityTime = (dateString) =>
+  new Intl.DateTimeFormat('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    hour: 'numeric',
+    minute: '2-digit',
+  }).format(new Date(dateString));
 // Venue inventory shown in search, recommendations, details, and administration.
 const venues = [
   {
@@ -106,26 +116,80 @@ const venues = [
   },
 ];
 const navUser = [
-  ['Overview', LayoutDashboard],
-  ['Find a Venue', Search],
-  ['My Bookings', CalendarDays],
-  ['Authorization', ShieldCheck],
-  ['Notifications', Bell],
-  ['Profile', UserRound],
+  ['Overview', 'space_dashboard'],
+  ['Find a Venue', 'search'],
+  ['My Bookings', 'calendar_month'],
+  ['Authorization', 'verified_user'],
+  ['Notifications', 'notifications'],
+  ['Profile', 'person'],
 ];
+const navPublic = [['Find a Venue', 'search']];
 const navAdmin = [
-  ['Overview', LayoutDashboard],
-  ['Booking Requests', ClipboardList],
-  ['Authorization Requests', ShieldCheck],
-  ['Venue Management', Building2],
-  ['Booking Calendar', CalendarDays],
-  ['Analytics', BarChart3],
+  ['Overview', 'space_dashboard'],
+  ['Booking Requests', 'assignment'],
+  ['Authorization Requests', 'verified_user'],
+  ['Venue Management', 'meeting_room'],
+  ['Booking Calendar', 'calendar_month'],
+  ['Analytics', 'analytics'],
 ];
+const pageRoutes = {
+  Overview: '/dashboard',
+  'Find a Venue': '/venues',
+  'My Bookings': '/bookings',
+  Authorization: '/authorization',
+  Notifications: '/notifications',
+  Profile: '/profile',
+  'Booking Requests': '/admin/booking-requests',
+  'Authorization Requests': '/admin/authorization-requests',
+  'Venue Management': '/admin/venues',
+  'Booking Calendar': '/admin/calendar',
+  Analytics: '/admin/analytics',
+  'Create Booking': '/bookings/new',
+  'Sign in': '/login',
+  'Sign up': '/register',
+  'Forgot password': '/forgot-password',
+  'Access Pending': '/access-pending',
+};
+const publicPages = new Set([
+  'Sign in',
+  'Sign up',
+  'Forgot password',
+  'Access Pending',
+  'Find a Venue',
+  'Venue Details',
+]);
+const getPageFromPath = (pathname) => {
+  const path = pathname.replace(/\/+$/, '') || '/';
+  if (path === '/') return 'Overview';
+  if (path.startsWith('/venues/')) return getVenueFromPath(path) ? 'Venue Details' : 'Not Found';
+  if (path.startsWith('/admin/booking-requests/')) return 'Booking Requests';
+  if (path.startsWith('/bookings/') && path !== '/bookings/new') return 'My Bookings';
+  return Object.entries(pageRoutes).find(([, route]) => route === path)?.[0] || 'Not Found';
+};
+const getVenueFromPath = (pathname) => {
+  const slug = pathname.match(/^\/venues\/([^/]+)\/?$/)?.[1];
+  if (!slug) return null;
+  let venueSlug;
+  try {
+    venueSlug = decodeURIComponent(slug);
+  } catch {
+    return null;
+  }
+  return (
+    venues.find((item) => item.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') === venueSlug)
+      ?.name ?? null
+  );
+};
+const getBookingIdFromPath = (pathname) => {
+  const match = pathname.match(/^\/(?:admin\/booking-requests|bookings)\/([^/]+)\/?$/);
+  return match && match[1] !== 'new' ? decodeURIComponent(match[1]) : null;
+};
 function App() {
   // Current page and signed-in user's role.
   const [role, setRole] = useState('Faculty');
-  const [page, setPage] = useState('Overview');
+  const [page, setPage] = useState(() => getPageFromPath(window.location.pathname));
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [sidebarHidden, setSidebarHidden] = useState(false);
 
   // Booking and venue workspace state.
   const [bookings, setBookings] = useState([]);
@@ -134,7 +198,7 @@ function App() {
   const [selected, setSelected] = useState(null);
   const [toast, setToast] = useState('');
   const [modal, setModal] = useState('');
-  const [venue, setVenue] = useState('Seminar Hall 2');
+  const [venue, setVenue] = useState(() => getVenueFromPath(window.location.pathname) || 'Seminar Hall 2');
   const [showPassword, setShowPassword] = useState(false);
   const [month, setMonth] = useState(0);
 
@@ -176,7 +240,8 @@ function App() {
   const [weekOffset, setWeekOffset] = useState(0);
   const [profileOpen, setProfileOpen] = useState(false);
   const isAdmin = role === 'Admin';
-  const nav = isAdmin ? navAdmin : navUser;
+  const isSignedIn = Boolean(accessToken);
+  const nav = isAdmin ? navAdmin : isSignedIn ? navUser : navPublic;
   const displayName = currentUser.name || 'User';
   const initials = displayName
     .split(' ')
@@ -184,9 +249,46 @@ function App() {
     .slice(0, 2)
     .map((w) => w[0].toUpperCase())
     .join('');
-  function go(p) {
+  function go(p, options = {}) {
+    if (!tokenRef.current && !publicPages.has(p)) p = 'Sign in';
+    const path =
+      p === 'Venue Details'
+        ? `/venues/${venue.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`
+        : pageRoutes[p] || '/dashboard';
+    if (options.replace) {
+      window.history.replaceState({}, '', path);
+    } else if (window.location.pathname !== path) {
+      window.history.pushState({}, '', path);
+    }
     setPage(p);
+    if (p === 'Sign in') {
+      setAuthView('signin');
+      setRecovering(false);
+    } else if (p === 'Sign up') {
+      setAuthView('signup');
+      setSignupStep('details');
+      setRecovering(false);
+    } else if (p === 'Forgot password') {
+      setAuthView('signin');
+      setRecovering(true);
+    }
     setMobileOpen(false);
+    setSelected(null);
+  }
+  function openBooking(booking) {
+    const detailPath = isAdmin
+      ? `/admin/booking-requests/${encodeURIComponent(booking.id)}`
+      : `/bookings/${encodeURIComponent(booking.id)}`;
+    if (window.location.pathname !== detailPath) {
+      window.history.pushState({}, '', detailPath);
+    }
+    setPage(isAdmin ? 'Booking Requests' : 'My Bookings');
+    setSelected(booking);
+    setMobileOpen(false);
+  }
+  function closeBookingDetails() {
+    const listPath = isAdmin ? pageRoutes['Booking Requests'] : pageRoutes['My Bookings'];
+    window.history.replaceState({}, '', listPath);
     setSelected(null);
   }
   const notify = (s) => {
@@ -251,6 +353,48 @@ function App() {
     return data;
   }
 
+  // Keep the rendered screen in sync with the browser URL and Back/Forward buttons.
+  useEffect(() => {
+    const handlePopState = () => {
+      const nextPage = getPageFromPath(window.location.pathname);
+      const bookingId = getBookingIdFromPath(window.location.pathname);
+      if (nextPage === 'Not Found') {
+        window.history.replaceState({}, '', '/dashboard');
+        setPage('Overview');
+      } else {
+        setPage(nextPage);
+        if (nextPage === 'Sign in') {
+          setAuthView('signin');
+          setRecovering(false);
+        } else if (nextPage === 'Sign up') {
+          setAuthView('signup');
+          setSignupStep('details');
+          setRecovering(false);
+        } else if (nextPage === 'Forgot password') {
+          setAuthView('signin');
+          setRecovering(true);
+        }
+        if (nextPage === 'Venue Details') {
+          setVenue(getVenueFromPath(window.location.pathname) || 'Seminar Hall 2');
+        }
+      }
+      setSelected(bookingId ? bookings.find((item) => String(item.id) === bookingId) || null : null);
+      setMobileOpen(false);
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [bookings]);
+
+  useEffect(() => {
+    const bookingId = getBookingIdFromPath(window.location.pathname);
+    if (!bookingId) {
+      setSelected(null);
+      return;
+    }
+    const booking = bookings.find((item) => String(item.id) === bookingId);
+    if (booking) setSelected(booking);
+  }, [bookings]);
+
   // Restore the session on page load from the refresh cookie.
   useEffect(() => {
     let active = true;
@@ -261,9 +405,31 @@ function App() {
         setRole(data.user.role);
         setCurrentUser(data.user);
         setAuthorized(true);
-        setPage('Overview');
+        const requestedPage = getPageFromPath(window.location.pathname);
+        if (['Sign in', 'Sign up', 'Forgot password', 'Access Pending'].includes(requestedPage)) {
+          go('Overview', { replace: true });
+        } else if (requestedPage === 'Not Found') {
+          go('Overview', { replace: true });
+        } else if (
+          data.user.role !== 'Admin' &&
+          ['Booking Requests', 'Authorization Requests', 'Venue Management', 'Booking Calendar', 'Analytics'].includes(requestedPage)
+        ) {
+          go('Overview', { replace: true });
+        } else {
+          if (requestedPage === 'Venue Details') {
+            setVenue(getVenueFromPath(window.location.pathname) || 'Seminar Hall 2');
+          }
+          setPage(requestedPage);
+        }
       } else {
-        setPage('Sign in');
+        const requestedPage = getPageFromPath(window.location.pathname);
+        if (!publicPages.has(requestedPage)) {
+          go('Sign in', { replace: true });
+        } else {
+          setPage(requestedPage);
+          if (requestedPage === 'Sign up') setAuthView('signup');
+          if (requestedPage === 'Forgot password') setRecovering(true);
+        }
       }
       setSessionReady(true);
     })();
@@ -271,6 +437,25 @@ function App() {
       active = false;
     };
   }, []);
+
+  // Protect application and administrator routes when the URL is entered directly.
+  useEffect(() => {
+    if (!sessionReady) return;
+    const adminPages = [
+      'Booking Requests',
+      'Authorization Requests',
+      'Venue Management',
+      'Booking Calendar',
+      'Analytics',
+    ];
+    if (!accessToken && !publicPages.has(page)) {
+      go('Sign in', { replace: true });
+    } else if (accessToken && ['Sign in', 'Sign up', 'Forgot password'].includes(page)) {
+      go('Overview', { replace: true });
+    } else if (accessToken && adminPages.includes(page) && !isAdmin) {
+      go('Overview', { replace: true });
+    }
+  }, [accessToken, isAdmin, page, sessionReady]);
 
   // Admin: authorization requests (list, approve, reject).
   async function loadAuthRequests(reviewStatus) {
@@ -686,7 +871,11 @@ function App() {
         </thead>
         <tbody>
           {rows.map((b) => (
-            <tr key={b.id} onClick={() => setSelected(b)} className="click-row">
+            <tr
+              key={b.id}
+              onClick={() => openBooking(b)}
+              className="click-row"
+            >
               {admin ? (
                 <>
                   <td>
@@ -1251,7 +1440,7 @@ function App() {
       {table(filteredBookings, isAdmin)}
       {selected && (
         <div className="detail-inline">
-          <button className="close-inline" onClick={() => setSelected(null)}>
+          <button className="close-inline" onClick={closeBookingDetails}>
             <X size={16} />
           </button>
           <b>{selected.event}</b>
@@ -1815,7 +2004,7 @@ function App() {
                   aria-selected={authView === 'signin'}
                   className={authView === 'signin' ? 'active' : ''}
                   onClick={() => {
-                    setAuthView('signin');
+                    go('Sign in');
                     setLoginError('');
                   }}
                 >
@@ -1826,8 +2015,7 @@ function App() {
                   aria-selected={authView === 'signup'}
                   className={authView === 'signup' ? 'active' : ''}
                   onClick={() => {
-                    setAuthView('signup');
-                    setSignupStep('details');
+                    go('Sign up');
                     setLoginError('');
                   }}
                 >
@@ -1885,6 +2073,7 @@ function App() {
                     setRecovering(false);
                     setRecoverySent(false);
                     setLoginError('');
+                    go('Sign in');
                   }}
                 >
                   Back to sign in
@@ -2073,7 +2262,7 @@ function App() {
                   <button
                     className="text-button"
                     onClick={() => {
-                      setRecovering(true);
+                      go('Forgot password');
                       setLoginError('');
                     }}
                   >
@@ -2117,23 +2306,54 @@ function App() {
       case 'Notifications':
         return (
           <>
-            {heading('Notifications', 'Updates about your bookings and role requests.')}
-            <section className="panel">
-              {bookings.slice(0, 4).map((booking) => (
-                <div className="update-item" key={booking.id}>
-                  <div>
-                    <b>
-                      {booking.status === 'Pending'
-                        ? 'Booking request submitted'
-                        : `Booking ${booking.status.toLowerCase()}`}
-                    </b>
-                    <span>
-                      {booking.event} · {booking.venue} · {booking.date}
-                    </span>
-                  </div>
-                  {status(booking.status)}
+            {heading('Notifications', 'Booking changes and decisions for your reservations.')}
+            <section className="panel notification-panel">
+              <div className="notification-panel-head">
+                <div>
+                  <h2>Recent activity</h2>
+                  <p>Updates are ordered by the latest change.</p>
                 </div>
-              ))}
+                <span>{bookings.length} updates</span>
+              </div>
+              {bookings.length > 0 ? (
+                <div className="notification-list">
+                  {[...bookings]
+                    .sort((first, second) => Date.parse(second.updatedAt) - Date.parse(first.updatedAt))
+                    .map((booking) => (
+                      <article className="notification-row" key={booking.id}>
+                        <button
+                          className="notification-main"
+                          aria-label={`Open details for ${booking.event}`}
+                          onClick={() => openBooking(booking)}
+                        >
+                          <span className="notification-copy">
+                            <strong>{booking.event}</strong>
+                            <span>
+                              {booking.venue} · {formatEventDate(booking.date)} · {booking.time}
+                            </span>
+                            {booking.reason && (
+                              <span className="notification-reason">
+                                Rejection reason: {booking.reason}
+                              </span>
+                            )}
+                          </span>
+                          <ArrowRight size={17} aria-hidden="true" />
+                        </button>
+                        <div className="notification-meta">
+                          <span className="notification-time">
+                            Updated {formatActivityTime(booking.updatedAt)}
+                          </span>
+                          {status(booking.status)}
+                        </div>
+                      </article>
+                    ))}
+                </div>
+              ) : (
+                <div className="notification-empty">
+                  <b>No booking updates yet</b>
+                  <span>Updates will appear here when a booking request changes.</span>
+                </div>
+              )}
             </section>
           </>
         );
@@ -2176,29 +2396,36 @@ function App() {
   }
   return (
     <>
-      {page === 'Sign in' || page === 'Access Pending' ? (
+      {['Sign in', 'Sign up', 'Forgot password', 'Access Pending'].includes(page) ? (
         login()
       ) : (
         <div className="app-shell">
-          <aside className={`sidebar ${mobileOpen ? 'open' : ''}`}>
+          <aside className={`sidebar ${mobileOpen ? 'open' : ''} ${sidebarHidden ? 'hidden' : ''}`}>
             <div className="brand">
               <span className="brand-mark">B</span>
-              <span>
+              <span className="brand-copy">
                 Book a Room<small>VENUE BOOKING</small>
               </span>
-              <button className="mobile-close" onClick={() => setMobileOpen(false)}>
+              <button
+                className="mobile-close"
+                aria-label="Close navigation"
+                onClick={() => setMobileOpen(false)}
+              >
                 <X />
               </button>
             </div>
             <div className="nav-label">WORKSPACE</div>
             <nav>
-              {nav.map(([name, Icon]) => (
+              {nav.map(([name, iconName]) => (
                 <button
                   key={name}
                   className={`nav-item ${page === name ? 'active' : ''}`}
+                  aria-label={name}
                   onClick={() => go(name)}
                 >
-                  <Icon size={18} />
+                  <span className="material-symbols-outlined nav-icon" aria-hidden="true">
+                    {iconName}
+                  </span>
                   <span>{name}</span>
                   {name === 'Booking Requests' && isAdmin && pendingBookings > 0 && (
                     <i className="nav-count">{pendingBookings}</i>
@@ -2207,67 +2434,110 @@ function App() {
               ))}
             </nav>
             <div className="sidebar-bottom">
-              <button className="nav-item" onClick={signOut}>
-                <LogOut size={18} />
-                Sign out
-              </button>
-              <div
-                className={`profile-mini ${profileOpen ? 'open' : ''}`}
-                onClick={() => setProfileOpen(!profileOpen)}
-              >
-                <div className="avatar">{initials}</div>
-                <div>
-                  <b>{displayName}</b>
-                  <span>{role}</span>
-                </div>
-                <ChevronDown
-                  size={15}
-                  className={`profile-chevron ${profileOpen ? 'rotated' : ''}`}
-                />
-                {profileOpen && (
-                  <div className="profile-dropdown" onClick={(e) => e.stopPropagation()}>
-                    <div className="profile-dropdown-label">{displayName}</div>
-                    <button
-                      className="profile-dropdown-item"
-                      onClick={() => {
-                        go('Profile');
-                        setProfileOpen(false);
-                      }}
-                    >
-                      Profile
-                    </button>
-                    <button
-                      className="profile-dropdown-item"
-                      onClick={() => {
-                        setProfileOpen(false);
-                        signOut();
-                      }}
-                    >
-                      Sign out
-                    </button>
+              {isSignedIn ? (
+                <>
+                  <button className="nav-item" onClick={signOut}>
+                    <LogOut size={18} />
+                    <span>Sign out</span>
+                  </button>
+                  <div
+                    className={`profile-mini ${profileOpen ? 'open' : ''}`}
+                    onClick={() => setProfileOpen(!profileOpen)}
+                  >
+                    <div className="avatar">{initials}</div>
+                    <div>
+                      <b>{displayName}</b>
+                      <span>{role}</span>
+                    </div>
+                    <ChevronDown
+                      size={15}
+                      className={`profile-chevron ${profileOpen ? 'rotated' : ''}`}
+                    />
+                    {profileOpen && (
+                      <div className="profile-dropdown" onClick={(e) => e.stopPropagation()}>
+                        <div className="profile-dropdown-label">{displayName}</div>
+                        <button
+                          className="profile-dropdown-item"
+                          onClick={() => {
+                            go('Profile');
+                            setProfileOpen(false);
+                          }}
+                        >
+                          Profile
+                        </button>
+                        <button
+                          className="profile-dropdown-item"
+                          onClick={() => {
+                            setProfileOpen(false);
+                            signOut();
+                          }}
+                        >
+                          Sign out
+                        </button>
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
+                </>
+              ) : (
+                <button className="nav-item" onClick={() => go('Sign in')}>
+                  <span className="material-symbols-outlined nav-icon" aria-hidden="true">
+                    login
+                  </span>
+                  <span>Sign in</span>
+                </button>
+              )}
             </div>
           </aside>
-          <div className="workspace">
+          {mobileOpen && (
+            <button
+              className="sidebar-overlay"
+              aria-label="Close navigation"
+              onClick={() => setMobileOpen(false)}
+            />
+          )}
+          <div className={`workspace ${sidebarHidden ? 'sidebar-hidden' : ''}`}>
             <header className="topbar">
-              <button className="mobile-menu" onClick={() => setMobileOpen(true)}>
+              <button
+                className="nav-toggle"
+                aria-label="Toggle navigation"
+                aria-expanded={
+                  window.matchMedia('(max-width: 720px)').matches ? mobileOpen : !sidebarHidden
+                }
+                title={
+                  window.matchMedia('(max-width: 720px)').matches
+                    ? 'Open navigation'
+                    : 'Toggle navigation'
+                }
+                onClick={() => {
+                  if (window.matchMedia('(max-width: 720px)').matches) {
+                    setSidebarHidden(false);
+                    setMobileOpen(true);
+                  } else {
+                    setSidebarHidden((hidden) => !hidden);
+                    setProfileOpen(false);
+                  }
+                }}
+              >
                 <Menu />
               </button>
-              <div className="breadcrumb">
-                Book a Room <span>/</span> <b>{page}</b>
-              </div>
               <div className="top-actions">
-                <button className="icon-button notify" onClick={() => go('Notifications')}>
-                  <Bell size={18} />
-                  <i />
-                </button>
-                <div className="top-profile">
-                  <div className="avatar">{initials}</div>
-                  <span>{displayName}</span>
-                  <ChevronDown size={14} />
-                </div>
+                {isSignedIn ? (
+                  <>
+                    <button className="icon-button notify" onClick={() => go('Notifications')}>
+                      <Bell size={18} />
+                      <i />
+                    </button>
+                    <div className="top-profile">
+                      <div className="avatar">{initials}</div>
+                      <span>{displayName}</span>
+                      <ChevronDown size={14} />
+                    </div>
+                  </>
+                ) : (
+                  <button className="button primary" onClick={() => go('Sign in')}>
+                    Sign in
+                  </button>
+                )}
               </div>
             </header>
             <main className="main-content">{content}</main>
