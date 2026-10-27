@@ -25,7 +25,8 @@ const handleError = (res, error) => {
   return res.status(500).json({ message: 'Server error' });
 };
 
-const isAdmin = (req) => Boolean(req.user && req.user.role === 'admin');
+const isAdmin = (req) =>
+  Boolean(req.user && String(req.user.role).toLowerCase() === 'admin');
 
 const createVenue = async (req, res) => {
   try {

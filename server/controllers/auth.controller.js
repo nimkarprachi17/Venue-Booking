@@ -112,6 +112,7 @@ const otp_verify = async (req, res) => {
             user: {
                 id: user._id,
                 email: user.email,
+                name: user.name,
                 role: user.role,
                 authorizationStatus:authRequest.status=="approved" ? "approved" : "pending"
             }
@@ -254,6 +255,7 @@ const userLogin = async (req, res) => {
                 name:user.name,
                 id: user._id,
                 email: user.email,
+                name: user.name,
                 role: user.role,
                 authorizationStatus,
             },
@@ -302,6 +304,7 @@ const refreshAccessToken=async(req,res)=>{
                 id:user._id,
                 name:user.name,
                 email:user.email,
+                name:user.name,
                 role:user.role,
                 authorizationStatus:"approved"
             }
