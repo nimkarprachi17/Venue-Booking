@@ -27,6 +27,7 @@ export function createUserPages(model) {
     table,
     status,
     venues,
+    venue,
     setVenue,
     field,
     query,
