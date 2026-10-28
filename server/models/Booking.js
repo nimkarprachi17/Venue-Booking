@@ -28,6 +28,14 @@ const bookingSchema = new mongoose.Schema(
       required: [true, 'Expected attendance is required'],
       min: [1, 'Expected attendance must be at least 1'],
     },
+    bookedFor: {
+      type: String,
+      trim: true,
+    },
+    description: {
+      type: String,
+      trim: true,
+    },
     requiredFacilities: {
       type: [String],
       default: [],
