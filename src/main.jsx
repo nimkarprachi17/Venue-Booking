@@ -80,39 +80,53 @@ const formatActivityTime = (dateString) =>
 // Venue inventory shown in search, recommendations, details, and administration.
 const venues = [
   {
-    name: 'Main Auditorium',
-    building: 'Central Block · Ground floor',
-    capacity: 300,
+    name: 'Main auditorium',
+    building: 'Auditorium',
+    capacity: 500,
     facilities: ['Projector', 'PA system', 'Stage', 'Accessible'],
     img: 'photo-1475721027785-f74eccf877e2',
   },
   {
-    name: 'Seminar Hall 2',
-    building: 'Academic Block B · Level 2',
-    capacity: 100,
-    facilities: ['Projector', 'Video conferencing', 'Whiteboard'],
+    name: 'Mini auditorium',
+    building: 'Auditorium',
+    capacity: 150,
+    facilities: ['Projector', 'PA system', 'Stage'],
     img: 'photo-1517457373958-b7a2e6b815ab',
   },
   {
-    name: 'Conference Room A',
-    building: 'Administration Block · Level 1',
-    capacity: 30,
-    facilities: ['Display', 'Video conferencing', 'Whiteboard'],
-    img: 'photo-1497366216548-37526070297c',
-  },
-  {
-    name: 'Computer Lab 1',
-    building: 'Technology Block · Level 3',
+    name: 'Cognizant Lab',
+    building: 'Computer laboratory',
     capacity: 60,
-    facilities: ['60 workstations', 'Projector', 'Wi-Fi'],
+    facilities: ['Workstations', 'Projector', 'Wi-Fi'],
     img: 'photo-1581092921461-eab62e97a780',
   },
   {
-    name: 'Classroom C-204',
-    building: 'Academic Block C · Level 2',
+    name: 'New Cse NC28',
+    building: 'CSE · NC28',
     capacity: 80,
-    facilities: ['Projector', 'Whiteboard', 'Accessible'],
+    facilities: ['Projector', 'Whiteboard', 'Wi-Fi'],
     img: 'photo-1497366754035-f200968a6e72',
+  },
+  {
+    name: 'Academic Complex NC04',
+    building: 'Academic Complex · NC04',
+    capacity: 100,
+    facilities: ['Projector', 'Whiteboard', 'Wi-Fi'],
+    img: 'photo-1497366216548-37526070297c',
+  },
+  {
+    name: 'Seminar Hall 2',
+    building: 'Seminar hall',
+    capacity: 120,
+    facilities: ['Projector', 'Microphone', 'Podium', 'Air conditioning'],
+    img: 'photo-1517457373958-b7a2e6b815ab',
+  },
+  {
+    name: 'Electronic Extension Building',
+    building: 'Electronic Extension Building',
+    capacity: 100,
+    facilities: ['Projector', 'Microphone', 'Wi-Fi'],
+    img: 'photo-1497366216548-37526070297c',
   },
 ];
 const navUser = [
@@ -193,12 +207,71 @@ function App() {
 
   // Booking and venue workspace state.
   const [bookings, setBookings] = useState([]);
+  const [previewBookingRequests, setPreviewBookingRequests] = useState(() => {
+    const requested = new Date();
+    const submitted = requested.toLocaleDateString('en-IN', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    });
+    const withDaysFromNow = (days) => {
+      const date = new Date();
+      date.setDate(date.getDate() + days);
+      return toISODate(date);
+    };
+    return [
+      {
+        id: 'preview-request-cse-presentation',
+        requester: 'Riya Kulkarni',
+        role: 'CR',
+        event: 'CSE Project Presentation',
+        venue: 'Seminar Hall 2',
+        date: withDaysFromNow(2),
+        time: '10:00 – 12:00',
+        attendees: 82,
+        requested: submitted,
+        status: 'Pending',
+      },
+      {
+        id: 'preview-request-web-workshop',
+        requester: 'Aarav Patil',
+        role: 'Club Head',
+        event: 'Web Development Workshop',
+        venue: 'Cognizant Lab',
+        date: withDaysFromNow(3),
+        time: '14:00 – 16:00',
+        attendees: 48,
+        requested: submitted,
+        status: 'Pending',
+      },
+      {
+        id: 'preview-request-electronics-showcase',
+        requester: 'Ananya Shah',
+        role: 'CR',
+        event: 'Electronics Design Showcase',
+        venue: 'Electronic Extension Building',
+        date: withDaysFromNow(5),
+        time: '11:00 – 13:00',
+        attendees: 70,
+        requested: submitted,
+        status: 'Pending',
+      },
+    ];
+  });
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('All');
   const [selected, setSelected] = useState(null);
   const [toast, setToast] = useState('');
   const [modal, setModal] = useState('');
   const [venue, setVenue] = useState(() => getVenueFromPath(window.location.pathname) || 'Seminar Hall 2');
+  const [bookingDate, setBookingDate] = useState(() => {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    return toISODate(tomorrow);
+  });
+  const [bookingStartTime, setBookingStartTime] = useState('10:00');
+  const [bookingEndTime, setBookingEndTime] = useState('12:00');
+  const [bookingAttendees, setBookingAttendees] = useState('48');
   const [showPassword, setShowPassword] = useState(false);
   const [month, setMonth] = useState(0);
 
@@ -228,6 +301,48 @@ function App() {
   const tokenRef = useRef('');
   const [sessionReady, setSessionReady] = useState(false);
   const [authRequests, setAuthRequests] = useState([]);
+  const [pendingAuthRequestCount, setPendingAuthRequestCount] = useState(null);
+  const [previewAuthRequests, setPreviewAuthRequests] = useState(() => {
+    const createdAt = new Date().toISOString();
+    return [
+      {
+        _id: 'preview-auth-request-cr-cse',
+        user: { name: 'Meera Joshi', email: 'meera.joshi@college.edu' },
+        type: 'Class Representative',
+        details: {
+          name: 'CSE · Third Year',
+          department: 'Computer Engineering',
+          note: 'Elected class representative for the 2026–27 academic year.',
+        },
+        status: 'pending',
+        createdAt,
+      },
+      {
+        _id: 'preview-auth-request-club',
+        user: { name: 'Kabir Deshmukh', email: 'kabir.deshmukh@college.edu' },
+        type: 'Club Head',
+        details: {
+          name: 'Coding Club',
+          department: 'Computer Engineering',
+          note: 'Club coordinator requesting venue booking access for student events.',
+        },
+        status: 'pending',
+        createdAt,
+      },
+      {
+        _id: 'preview-auth-request-cr-electronics',
+        user: { name: 'Sana Kulkarni', email: 'sana.kulkarni@college.edu' },
+        type: 'Class Representative',
+        details: {
+          name: 'Electronics · Second Year',
+          department: 'Electronics Engineering',
+          note: 'Class representative for department seminars and student sessions.',
+        },
+        status: 'pending',
+        createdAt,
+      },
+    ];
+  });
   const [authFilter, setAuthFilter] = useState('pending');
   const [reviewing, setReviewing] = useState(null);
   const [rejectReason, setRejectReason] = useState('');
@@ -238,6 +353,7 @@ function App() {
   const [profileDraft, setProfileDraft] = useState(null);
   const [calendarVenue, setCalendarVenue] = useState('All venues');
   const [weekOffset, setWeekOffset] = useState(0);
+  const [calendarSelection, setCalendarSelection] = useState(null);
   const [profileOpen, setProfileOpen] = useState(false);
   const isAdmin = role === 'Admin';
   const isSignedIn = Boolean(accessToken);
@@ -324,6 +440,7 @@ function App() {
     );
     saveToken('');
     setAuthRequests([]);
+    setPendingAuthRequestCount(null);
     setBookings([]);
     setCurrentUser({ name: '', email: '', role: '' });
     setLoginPassword('');
@@ -462,12 +579,33 @@ function App() {
     try {
       const data = await api(`/api/admin/auth-requests?status=${reviewStatus}`);
       setAuthRequests(data.requests);
+      if (reviewStatus === 'pending') {
+        setPendingAuthRequestCount(data.requests.length);
+      }
     } catch (error) {
       notify(error.message);
     }
   }
   async function reviewRequest(id, action, reason) {
     if (reviewBusy) return;
+    if (String(id).startsWith('preview-auth-request-')) {
+      setPreviewAuthRequests((current) =>
+        current.map((request) =>
+          request._id === id
+            ? {
+                ...request,
+                status: action === 'approve' ? 'approved' : 'rejected',
+                rejectionReason: action === 'reject' ? reason : '',
+              }
+            : request,
+        ),
+      );
+      setModal('');
+      setReviewing(null);
+      setRejectReason('');
+      notify(action === 'approve' ? 'Sample authorization approved' : 'Sample authorization rejected');
+      return;
+    }
     setReviewBusy(true);
     try {
       await api(`/api/admin/auth-requests/${id}/${action}`, {
@@ -683,14 +821,18 @@ function App() {
     }
   };
   // Booking actions and derived data.
+  const showSampleBookingRequests = isAdmin && !bookings.some((b) => b.status === 'Pending');
+  const adminBookingRows = showSampleBookingRequests
+    ? [...bookings, ...previewBookingRequests]
+    : bookings;
   const filteredBookings = useMemo(
     () =>
-      bookings.filter(
+      (isAdmin ? adminBookingRows : bookings).filter(
         (b) =>
           (filter === 'All' || b.status === filter) &&
           `${b.event} ${b.venue} ${b.requester}`.toLowerCase().includes(query.toLowerCase()),
       ),
-    [bookings, filter, query],
+    [bookings, filter, isAdmin, adminBookingRows, query],
   );
   const createBooking = async () => {
     const pick = (name) => document.querySelector(`[name="${name}"]`);
@@ -746,6 +888,17 @@ function App() {
       notify('Enter a rejection reason');
       return;
     }
+    if (String(id).startsWith('preview-request-')) {
+      setPreviewBookingRequests((current) =>
+        current.map((booking) =>
+          booking.id === id ? { ...booking, status, reason: reason?.trim() || '' } : booking,
+        ),
+      );
+      notify(`Sample booking ${status.toLowerCase()}`);
+      setModal('');
+      setSelected(null);
+      return;
+    }
     const action = { Approved: 'approve', Rejected: 'reject', Cancelled: 'cancel' }[status];
     try {
       await api(`/api/bookings/${id}/${action}`, {
@@ -782,19 +935,24 @@ function App() {
   const today = toISODate(new Date());
   const monthKey = today.slice(0, 7);
   const monthLabel = new Date().toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
-  const pendingBookings = bookings.filter((b) => b.status === 'Pending').length;
+  const monthDays = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
+  const pendingBookings = adminBookingRows.filter((b) => b.status === 'Pending').length;
   const todaysBookings = bookings
     .filter((b) => b.date === today && ['Confirmed', 'Approved'].includes(b.status))
     .sort((a, b) => a.time.localeCompare(b.time));
   const monthBookings = bookings.filter((b) => b.date.startsWith(monthKey));
   const liveBookings = monthBookings.filter((b) => ['Confirmed', 'Approved'].includes(b.status));
+  const analyticsPreview = monthBookings.length === 0;
+  const previewVolumeBars = [1, 2, 1, 3, 1, 2, 4, 2, 1, 4, 3, 7];
   const volumeBars = Array.from(
     { length: 12 },
     (_, i) =>
-      liveBookings.filter((b) => {
-        const day = Number(b.date.slice(8));
-        return i === 11 ? day >= 23 : day === 2 * i + 1 || day === 2 * i + 2;
-      }).length,
+      analyticsPreview
+        ? previewVolumeBars[i]
+        : liveBookings.filter((b) => {
+            const day = Number(b.date.slice(8));
+            return i === 11 ? day >= 23 : day === 2 * i + 1 || day === 2 * i + 2;
+          }).length,
   );
   const volumeMax = Math.max(...volumeBars, 0);
   const bookedHours = (list) =>
@@ -802,26 +960,55 @@ function App() {
       const [from, to] = b.time.split(' – ');
       return sum + (minutesOf(to) - minutesOf(from)) / 60;
     }, 0);
-  // Utilization assumes 9 bookable hours a day over 31 days.
-  const venueUtilization = venues
-    .map((v) => [
-      v.name,
-      Math.min(
-        100,
-        Math.round((bookedHours(liveBookings.filter((b) => b.venue === v.name)) / (9 * 31)) * 100),
-      ),
-    ])
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 4);
-  const mostBooked = venues
-    .map((v) => [v.name, liveBookings.filter((b) => b.venue === v.name).length])
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 4)
-    .map(([name, count]) => [name, `${count} bookings`]);
-  const statusBreakdown = ['Confirmed', 'Approved', 'Pending', 'Rejected'].map((name) => [
-    name,
-    monthBookings.filter((b) => b.status === name).length,
-  ]);
+  // Utilization assumes 9 bookable hours per venue per day in the selected month.
+  const venueUtilization = analyticsPreview
+    ? [
+        ['Main auditorium', 23],
+        ['Mini auditorium', 19],
+        ['Cognizant Lab', 14],
+        ['New Cse NC28', 12],
+        ['Academic Complex NC04', 10],
+        ['Seminar Hall 2', 17],
+        ['Electronic Extension Building', 8],
+      ]
+    : venues
+        .map((v) => [
+          v.name,
+          Math.min(
+            100,
+            Math.round(
+              (bookedHours(liveBookings.filter((b) => b.venue === v.name)) / (9 * monthDays)) * 100,
+            ),
+          ),
+        ])
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 4);
+  const mostBooked = analyticsPreview
+    ? [
+        ['Main auditorium', '10 bookings'],
+        ['Mini auditorium', '9 bookings'],
+        ['Cognizant Lab', '6 bookings'],
+        ['New Cse NC28', '5 bookings'],
+        ['Academic Complex NC04', '5 bookings'],
+        ['Seminar Hall 2', '8 bookings'],
+        ['Electronic Extension Building', '4 bookings'],
+      ]
+    : venues
+        .map((v) => [v.name, liveBookings.filter((b) => b.venue === v.name).length])
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 4)
+        .map(([name, count]) => [name, `${count} bookings`]);
+  const statusBreakdown = analyticsPreview
+    ? [
+        ['Confirmed', 21],
+        ['Approved', 10],
+        ['Pending', 4],
+        ['Rejected', 3],
+      ]
+    : ['Confirmed', 'Approved', 'Pending', 'Rejected'].map((name) => [
+        name,
+        monthBookings.filter((b) => b.status === name).length,
+      ]);
   // Shared presentational helpers used by multiple screens.
   const status = (s) => <span className={`status ${s.toLowerCase()}`}>{s}</span>;
   const button = (label, onClick, kind = 'secondary', icon = null) => (
@@ -847,8 +1034,9 @@ function App() {
     </div>
   );
   const table = (rows, admin = false) => (
-    <div className="table-wrap">
-      <table>
+    <>
+    <div className={`table-wrap ${admin ? 'admin-booking-table-wrap' : 'user-booking-table-wrap'}`} role="region" aria-label={admin ? 'Booking request list' : 'My booking list'} tabIndex={0}>
+      <table className={admin ? 'admin-booking-table' : 'user-booking-table'}>
         <thead>
           <tr>
             {(admin
@@ -954,6 +1142,53 @@ function App() {
         </div>
       )}
     </div>
+    <div className={`booking-cards ${admin ? 'admin-booking-cards' : 'user-booking-cards'}`}>
+      {rows.length === 0 ? (
+        <div className="empty booking-card-empty">
+          <CalendarDays size={20} />
+          <b>No bookings found</b>
+          <span>Try changing your filters or search terms.</span>
+        </div>
+      ) : rows.map((b) => (
+        <article className="booking-mobile-card" key={b.id}>
+          {admin ? (
+            <>
+              <div className="mobile-card-topline">
+                <div><b>{b.requester}</b><span>{b.role}</span></div>
+                {status(b.status)}
+              </div>
+              <button className="mobile-card-event" onClick={() => openBooking(b)}>{b.event}</button>
+              <p className="mobile-card-venue"><MapPin size={14} />{b.venue}</p>
+              <dl className="mobile-booking-facts">
+                <div><dt>Date</dt><dd>{b.date}</dd></div>
+                <div><dt>Time</dt><dd>{b.time}</dd></div>
+                <div><dt>Attendees</dt><dd>{b.attendees}</dd></div>
+                <div><dt>Submitted</dt><dd>{b.requested}</dd></div>
+              </dl>
+              {b.status === 'Pending' && <div className="mobile-card-actions">
+                {button('Approve', () => decision(b.id, 'Approved'), 'primary')}
+                {button('Reject', () => { setSelected(b); setModal('reject'); }, 'secondary danger')}
+              </div>}
+            </>
+          ) : (
+            <>
+              <div className="mobile-card-topline"><span className="mobile-booking-label">Booking</span>{status(b.status)}</div>
+              <button className="mobile-card-event" onClick={() => openBooking(b)}>{b.event}</button>
+              {b.id && <p className="mobile-card-id">{b.id}</p>}
+              <p className="mobile-card-venue"><MapPin size={14} />{b.venue}</p>
+              <dl className="mobile-booking-facts">
+                <div><dt>Date</dt><dd>{b.date}</dd></div>
+                <div><dt>Time</dt><dd>{b.time}</dd></div>
+                <div><dt>Requested</dt><dd>{b.requested}</dd></div>
+              </dl>
+              {b.reason && <p className="mobile-booking-reason">Reason: {b.reason}</p>}
+              <div className="mobile-card-actions">{button('View details', () => openBooking(b), 'secondary')}</div>
+            </>
+          )}
+        </article>
+      ))}
+    </div>
+    </>
   );
   const venueRow = (v, i) => (
     <article className="venue-row" key={v.name}>
@@ -1154,13 +1389,13 @@ function App() {
       <section className="recommendation-band">
         <div>
           <span className="eyebrow">RECOMMENDED FOR YOUR EVENT</span>
-          <h2>Seminar Hall 2</h2>
-          <p>Fits 72 attendees, includes a projector, and is available for your selected time.</p>
+          <h2>Cognizant Lab</h2>
+          <p>Fits 48 attendees, includes workstations and a projector, and is available for your selected time.</p>
         </div>
         {button(
           'View recommendation',
           () => {
-            setVenue('Seminar Hall 2');
+            setVenue('Cognizant Lab');
             go('Venue Details');
           },
           'secondary',
@@ -1173,8 +1408,8 @@ function App() {
         <div>
           <b>Looking for a different time?</b>
           <span>
-            Main Auditorium is booked on 21 Oct, 10:00–12:00. Available alternatives: 13:00–15:00 in
-            Main Auditorium, or Seminar Hall 2 at your selected time.
+            Main auditorium is booked on 21 Oct, 10:00–12:00. Available alternatives: 13:00–15:00 in
+            Main auditorium, or Mini auditorium at your selected time.
           </span>
         </div>
         {button('See alternatives', () => setModal('alternatives'), 'secondary')}
@@ -1194,7 +1429,7 @@ function App() {
       <div className="form-layout">
         <section className="panel form-panel">
           <h2>Event details</h2>
-          <div className="form-grid">
+          <div className={`form-grid booking-event-grid${isAdmin ? ' is-admin' : ''}`}>
             {isAdmin &&
               field('Booking for', <input name="bookingFor" placeholder="Name and college email" />)}
             {field(
@@ -1215,6 +1450,17 @@ function App() {
               </select>,
             )}
             {field(
+              'Attendees',
+              <input
+                id="attendees"
+                name="attendees"
+                type="number"
+                min="1"
+                value={bookingAttendees}
+                onChange={(event) => setBookingAttendees(event.target.value)}
+              />,
+            )}
+            {field(
               'Purpose or description',
               <textarea
                 name="eventDescription"
@@ -1222,10 +1468,12 @@ function App() {
                 placeholder="Briefly describe the event"
               />,
             )}
-            {field(
-              'Attendees',
-              <input id="attendees" name="attendees" type="number" defaultValue="48" />,
-            )}
+          </div>
+          <div className="booking-section-heading">
+            <h3>Venue &amp; schedule</h3>
+            <p>Choose where and when the event will take place.</p>
+          </div>
+          <div className="form-grid booking-schedule-grid">
             {field(
               'Venue',
               <select name="venue" value={venue} onChange={(e) => setVenue(e.target.value)}>
@@ -1236,15 +1484,33 @@ function App() {
             )}
             {field(
               'Event date',
-              <input id="eventDate" name="eventDate" type="date" defaultValue="2026-10-28" />,
+              <input
+                id="eventDate"
+                name="eventDate"
+                type="date"
+                value={bookingDate}
+                onChange={(event) => setBookingDate(event.target.value)}
+              />,
             )}
             {field(
               'Start time',
-              <input id="startTime" name="startTime" type="time" defaultValue="10:00" />,
+              <input
+                id="startTime"
+                name="startTime"
+                type="time"
+                value={bookingStartTime}
+                onChange={(event) => setBookingStartTime(event.target.value)}
+              />,
             )}
             {field(
               'End time',
-              <input id="endTime" name="endTime" type="time" defaultValue="12:00" />,
+              <input
+                id="endTime"
+                name="endTime"
+                type="time"
+                value={bookingEndTime}
+                onChange={(event) => setBookingEndTime(event.target.value)}
+              />,
             )}
             {field(
               'Required facilities',
@@ -1285,11 +1551,23 @@ function App() {
           <dl>
             <div>
               <dt>Date</dt>
-              <dd>28 Oct 2026</dd>
+              <dd>
+                {bookingDate
+                  ? new Date(`${bookingDate}T12:00:00`).toLocaleDateString('en-GB', {
+                      day: 'numeric',
+                      month: 'short',
+                      year: 'numeric',
+                    })
+                  : 'Choose a date'}
+              </dd>
             </div>
             <div>
               <dt>Time</dt>
-              <dd>10:00 – 12:00</dd>
+              <dd>{bookingStartTime} – {bookingEndTime}</dd>
+            </div>
+            <div>
+              <dt>Attendees</dt>
+              <dd>{bookingAttendees || '0'} people</dd>
             </div>
             <div>
               <dt>Capacity</dt>
@@ -1297,7 +1575,7 @@ function App() {
             </div>
             <div>
               <dt>Facilities</dt>
-              <dd>Projector, Whiteboard</dd>
+              <dd>{venues.find((v) => v.name === venue)?.facilities.join(', ')}</dd>
             </div>
           </dl>
           {role !== 'Faculty' && !isAdmin && (
@@ -1412,13 +1690,18 @@ function App() {
           : 'Track requests and manage your venue reservations.',
         button('Book a venue', () => go('Find a Venue'), 'primary', Plus),
       )}
-      <div className="toolbar">
+      {showSampleBookingRequests && (
+        <p className="booking-preview-note">
+          Sample requests for preview · Live requests will appear here when available.
+        </p>
+      )}
+      <div className="toolbar booking-toolbar">
         <div className="tabs">
-          {['All', 'Upcoming', 'Pending', 'Approved', 'Rejected', 'Cancelled'].map((t) => (
+          {['All', 'Pending', 'Approved', 'Rejected'].map((t) => (
             <button
               key={t}
               className={filter === t ? 'active' : ''}
-              onClick={() => setFilter(t === 'Upcoming' ? 'All' : t)}
+              onClick={() => setFilter(t)}
             >
               {t}
             </button>
@@ -1434,7 +1717,6 @@ function App() {
               onChange={(e) => setQuery(e.target.value)}
             />
           </div>
-          <input name="bookingDateFilter" type="date" aria-label="Filter by date" />
         </div>
       </div>
       {table(filteredBookings, isAdmin)}
@@ -1457,6 +1739,25 @@ function App() {
       )}
     </>
   );
+  const visibleAuthRequests =
+    authRequests.length > 0
+      ? authRequests
+      : previewAuthRequests.filter((request) => request.status === authFilter);
+  const showingAuthPreview = authRequests.length === 0 && visibleAuthRequests.length > 0;
+  const authorizationBadgeCount =
+    pendingAuthRequestCount > 0
+      ? pendingAuthRequestCount
+      : previewAuthRequests.filter((request) => request.status === 'pending').length;
+  const dashboardBookingRequests = adminBookingRows.filter((booking) => booking.status === 'Pending');
+  const dashboardBookingPreview = showSampleBookingRequests && dashboardBookingRequests.length > 0;
+  const liveDashboardAuthorizationRequests = authRequests.filter(
+    (request) => request.status === 'pending',
+  );
+  const dashboardAuthorizationRequests = liveDashboardAuthorizationRequests.length
+    ? liveDashboardAuthorizationRequests
+    : previewAuthRequests.filter((request) => request.status === 'pending');
+  const dashboardAuthorizationPreview =
+    liveDashboardAuthorizationRequests.length === 0 && dashboardAuthorizationRequests.length > 0;
   const authPage = () => (
     <>
       {heading(
@@ -1466,7 +1767,7 @@ function App() {
           : 'CRs and Club Heads need an approved role authorization before booking.',
       )}
       {isAdmin ? (
-        <section className="panel">
+        <section className="panel auth-review-panel">
           <div className="section-head">
             <div>
               <h2>Requests requiring review</h2>
@@ -1484,21 +1785,27 @@ function App() {
               </button>
             ))}
           </div>
-          {authRequests.length === 0 && (
+          {showingAuthPreview && (
+            <p className="authorization-preview-note">
+              Sample authorization requests for preview · Live requests will appear here when available.
+            </p>
+          )}
+          {visibleAuthRequests.length === 0 && (
             <div className="empty">
               <ShieldCheck />
               <b>No {authFilter} requests</b>
               <span>Role requests will appear here.</span>
             </div>
           )}
-          {authRequests.map((r) => (
-            <div className="auth-request" key={r._id}>
+          {visibleAuthRequests.map((r) => (
+            <div className="auth-request auth-review-row" key={r._id}>
               <div>
                 <b>{r.user?.name || 'Unknown user'}</b>
                 <span>
-                  {r.type} · {r.user?.email} · Submitted{' '}
+                  {r.type} · {r.details?.name} · {r.user?.email} · Submitted{' '}
                   {new Date(r.createdAt).toLocaleDateString('en-IN')}
                 </span>
+                {r.details?.note && <small>{r.details.note}</small>}
                 {r.status === 'rejected' && r.rejectionReason && (
                   <small className="reason">Reason: {r.rejectionReason}</small>
                 )}
@@ -1514,7 +1821,7 @@ function App() {
                   'secondary',
                 )}
                 {r.status === 'pending' &&
-                  button('Approve', () => reviewRequest(r._id, 'approve'), 'text')}
+                  button('Approve', () => reviewRequest(r._id, 'approve'), 'primary')}
               </div>
             </div>
           ))}
@@ -1633,43 +1940,102 @@ function App() {
         </div>
         <div>
           <span>Booking requests</span>
-          <b>{bookings.filter((b) => b.status === 'Pending').length}</b>
+          <b>{dashboardBookingRequests.length}</b>
           <small>Require your review</small>
         </div>
         <div>
           <span>Authorization requests</span>
-          <b>{authRequests.length}</b>
+          <b>{dashboardAuthorizationRequests.length}</b>
           <small>Require your review</small>
         </div>
       </div>
       <div className="admin-grid">
-        <section className="panel wide">
+        <section className="panel wide admin-queue-panel">
           <div className="section-head">
             <div>
               <h2>Booking requests</h2>
-              <p>Only CR and Club Head requests need approval</p>
+              <p>
+                {dashboardBookingPreview
+                  ? 'Sample requests for preview · Live requests will replace these when available.'
+                  : 'Only CR and Club Head requests need approval.'}
+              </p>
             </div>
             {button('View queue', () => go('Booking Requests'), 'text')}
           </div>
-          {table(
-            bookings.filter((b) => b.status === 'Pending'),
-            true,
-          )}
+          <div className="overview-request-list">
+            {dashboardBookingRequests.length === 0 ? (
+              <div className="overview-empty">
+                <CalendarDays size={19} />
+                <span>No booking requests need review.</span>
+              </div>
+            ) : (
+              dashboardBookingRequests.slice(0, 4).map((booking) => {
+                const requesterInitials = booking.requester
+                  .split(' ')
+                  .filter(Boolean)
+                  .slice(0, 2)
+                  .map((part) => part[0].toUpperCase())
+                  .join('');
+                return (
+                  <article className="overview-request" key={booking.id}>
+                    <div className="overview-request-identity">
+                      <span className="overview-request-avatar">{requesterInitials}</span>
+                      <div>
+                        <b>{booking.requester}</b>
+                        <span>{booking.role}</span>
+                      </div>
+                    </div>
+                    <div className="overview-request-event">
+                      <button className="overview-event-link" onClick={() => openBooking(booking)}>
+                        {booking.event}
+                      </button>
+                      <span>{booking.venue}</span>
+                    </div>
+                    <div className="overview-request-time">
+                      <b>{formatEventDate(booking.date)}</b>
+                      <span>{booking.time} · {booking.attendees} attendees</span>
+                    </div>
+                    <div className="overview-request-actions">
+                      {button('Approve', () => decision(booking.id, 'Approved'), 'primary')}
+                      {button(
+                        'Reject',
+                        () => {
+                          setSelected(booking);
+                          setModal('reject');
+                        },
+                        'text danger',
+                      )}
+                    </div>
+                  </article>
+                );
+              })
+            )}
+          </div>
         </section>
         <section className="panel">
           <div className="section-head">
             <div>
               <h2>Authorization requests</h2>
-              <p>Separate from booking approvals</p>
+              <p>
+                {dashboardAuthorizationPreview
+                  ? 'Sample preview requests · Separate from booking approvals.'
+                  : 'Separate from booking approvals.'}
+              </p>
             </div>
             {button('View all', () => go('Authorization Requests'), 'text')}
           </div>
-          {authRequests.length === 0 && <p className="muted">No pending authorization requests.</p>}
-          {authRequests.slice(0, 3).map((r) => (
-            <div className="auth-request" key={r._id}>
+          {dashboardAuthorizationRequests.length === 0 && (
+            <div className="overview-empty compact">
+              <ShieldCheck size={18} />
+              <span>No authorization requests need review.</span>
+            </div>
+          )}
+          {dashboardAuthorizationRequests.slice(0, 3).map((r) => (
+            <div className="auth-request dashboard-auth-request" key={r._id}>
               <div>
                 <b>{r.user?.name || 'Unknown user'}</b>
-                <span>{r.type}</span>
+                <span>{r.type} · {r.details?.name}</span>
+                <small>{r.details?.department}</small>
               </div>
               <div>
                 {button(
@@ -1693,7 +2059,12 @@ function App() {
             </div>
             {button('Calendar', () => go('Booking Calendar'), 'text')}
           </div>
-          {todaysBookings.length === 0 && <p className="muted">No bookings scheduled for today.</p>}
+          {todaysBookings.length === 0 && (
+            <div className="overview-empty compact">
+              <CalendarDays size={18} />
+              <span>No bookings scheduled today.</span>
+            </div>
+          )}
           {todaysBookings.map((b) => (
             <div className="schedule-row" key={b.id}>
               <b>{b.time.split(' – ')[0]}</b>
@@ -1734,7 +2105,7 @@ function App() {
           <option>Accessible</option>
         </select>
       </div>
-      <div className="table-wrap">
+      <div className="table-wrap venue-management-table">
         <table>
           <thead>
             <tr>
@@ -1782,6 +2153,20 @@ function App() {
           </tbody>
         </table>
       </div>
+      <div className="venue-management-cards">
+        {venues.filter((v) => v.name.toLowerCase().includes(query.toLowerCase())).map((v) => (
+          <article className="venue-management-card" key={v.name}>
+            <div className="mobile-card-topline"><h3>{v.name}</h3><span className="status approved">Active</span></div>
+            <p className="mobile-card-venue"><MapPin size={14} />{v.building}</p>
+            <div className="venue-mobile-capacity"><span>Capacity</span><b>{v.capacity} people</b></div>
+            <div className="chips">{v.facilities.map((facility) => <span key={facility}>{facility}</span>)}</div>
+            <div className="mobile-card-actions">
+              {button('Edit', () => { setVenue(v.name); setModal('edit-venue'); }, 'secondary', Pencil)}
+              {button('Deactivate', () => { setVenue(v.name); setModal('deactivate'); }, 'text danger', Ban)}
+            </div>
+          </article>
+        ))}
+      </div>
     </>
   );
   const calendarPage = () => (
@@ -1827,61 +2212,159 @@ function App() {
           ))}
         </select>
       </div>
-      <div className="calendar-week">
-        <div className="time-axis">
-          <span></span>
-          {[
-            '08:00',
-            '09:00',
-            '10:00',
-            '11:00',
-            '12:00',
-            '13:00',
-            '14:00',
-            '15:00',
-            '16:00',
-            '17:00',
-          ].map((t) => (
-            <span key={t}>{t}</span>
-          ))}
-        </div>
-        {weekDays(weekOffset).map((d) => {
-          const iso = toISODate(d);
-          return (
-            <div className="day-col" key={iso}>
-              <b>
-                {d.toLocaleDateString('en-US', { weekday: 'short' })} {d.getDate()}
-              </b>
-              <div className="day-slots">
-                {bookings
-                  .filter(
-                    (b) =>
-                      b.date === iso &&
-                      ['Confirmed', 'Approved'].includes(b.status) &&
-                      (calendarVenue === 'All venues' || b.venue === calendarVenue),
-                  )
-                  .map((b) => {
-                    const [from, to] = b.time.split(' – ');
-                    const top = ((minutesOf(from) - 480) / 600) * 100;
-                    const height = ((minutesOf(to) - minutesOf(from)) / 600) * 100;
-                    return (
-                      <div
-                        key={b.id}
-                        className={`calendar-event${b.status === 'Approved' ? ' secondary-event' : ''}`}
-                        style={{ top: `${Math.max(top, 0)}%`, height: `${height}%` }}
-                      >
-                        <b>{b.event}</b>
-                        <span>
-                          {b.venue} · {from}
-                        </span>
-                      </div>
-                    );
-                  })}
+      {(() => {
+        const days = weekDays(weekOffset);
+        const weekStart = toISODate(days[0]);
+        const weekEnd = toISODate(days[6]);
+        const confirmedBookings = bookings.filter(
+          (booking) =>
+            ['confirmed', 'approved'].includes(String(booking.status).toLowerCase()) &&
+            booking.date >= weekStart &&
+            booking.date <= weekEnd,
+        );
+        const previewBookings = [
+          {
+            id: 'preview-cse-presentation',
+            event: 'CSE Project Presentation',
+            venue: 'Seminar Hall 2',
+            date: toISODate(days[0]),
+            time: '10:00 – 12:00',
+            status: 'Confirmed',
+            attendees: 82,
+            requester: 'Prachi Sharma',
+          },
+          {
+            id: 'preview-web-workshop',
+            event: 'Web Development Workshop',
+            venue: 'Cognizant Lab',
+            date: toISODate(days[1]),
+            time: '14:00 – 16:00',
+            status: 'Approved',
+            attendees: 48,
+            requester: 'Coding Club',
+          },
+          {
+            id: 'preview-guest-lecture',
+            event: 'Department Guest Lecture',
+            venue: 'Main auditorium',
+            date: toISODate(days[2]),
+            time: '11:00 – 13:00',
+            status: 'Confirmed',
+            attendees: 210,
+            requester: 'Computer Engineering',
+          },
+          {
+            id: 'preview-design-session',
+            event: 'Design Thinking Session',
+            venue: 'Academic Complex NC04',
+            date: toISODate(days[3]),
+            time: '09:00 – 11:00',
+            status: 'Approved',
+            attendees: 36,
+            requester: 'Design Society',
+          },
+          {
+            id: 'preview-coding-meetup',
+            event: 'Coding Club Meetup',
+            venue: 'New Cse NC28',
+            date: toISODate(days[4]),
+            time: '11:00 – 12:30',
+            status: 'Approved',
+            attendees: 24,
+            requester: 'Coding Club',
+          },
+        ];
+        const calendarBookings = confirmedBookings.length ? confirmedBookings : previewBookings;
+        const displayBookings = calendarBookings.filter(
+          (booking) => calendarVenue === 'All venues' || booking.venue === calendarVenue,
+        );
+
+        return (
+          <>
+            {!confirmedBookings.length && (
+              <p className="calendar-preview-note">
+                Sample schedule for preview. Approved and confirmed bookings will appear here when
+                available.
+              </p>
+            )}
+            <div className="calendar-week">
+              <div className="time-axis">
+                <span></span>
+                {[
+                  '08:00',
+                  '09:00',
+                  '10:00',
+                  '11:00',
+                  '12:00',
+                  '13:00',
+                  '14:00',
+                  '15:00',
+                  '16:00',
+                  '17:00',
+                ].map((time) => (
+                  <span key={time}>{time}</span>
+                ))}
               </div>
+              {days.map((day) => {
+                const iso = toISODate(day);
+                return (
+                  <div className="day-col" key={iso}>
+                    <b>
+                      {day.toLocaleDateString('en-US', { weekday: 'short' })} {day.getDate()}
+                    </b>
+                    <div className="day-slots">
+                      {displayBookings
+                        .filter((booking) => booking.date === iso)
+                        .map((booking) => {
+                          const [from, to] = booking.time.split(' – ');
+                          const top = ((minutesOf(from) - 480) / 600) * 100;
+                          const height = ((minutesOf(to) - minutesOf(from)) / 600) * 100;
+                          return (
+                            <button
+                              key={booking.id}
+                              type="button"
+                              className={`calendar-event${String(booking.status).toLowerCase() === 'approved' ? ' secondary-event' : ''}`}
+                              style={{ top: `${Math.max(top, 0)}%`, height: `${height}%` }}
+                              aria-label={`${booking.event}, ${booking.venue}, ${booking.time}`}
+                              onClick={() => setCalendarSelection(booking)}
+                            >
+                              <b>{booking.event}</b>
+                              <span>{booking.venue}</span>
+                              <small>{from}–{to}</small>
+                            </button>
+                          );
+                        })}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-          );
-        })}
-      </div>
+            {calendarSelection && (
+              <section className="panel calendar-selection" aria-live="polite">
+                <div>
+                  <span className="eyebrow">BOOKING DETAILS</span>
+                  <h2>{calendarSelection.event}</h2>
+                  <p>
+                    {calendarSelection.venue} · {formatEventDate(calendarSelection.date)} ·{' '}
+                    {calendarSelection.time}
+                  </p>
+                  <span>
+                    {calendarSelection.attendees} attendees · Booked for {calendarSelection.requester}
+                  </span>
+                </div>
+                {status(calendarSelection.status)}
+                <button
+                  className="icon-button"
+                  aria-label="Close booking details"
+                  onClick={() => setCalendarSelection(null)}
+                >
+                  <X size={16} />
+                </button>
+              </section>
+            )}
+          </>
+        );
+      })()}
     </>
   );
   const analytics = () => (
@@ -1890,23 +2373,62 @@ function App() {
         'Analytics',
         'Booking patterns and venue utilization.',
         <div className="toolbar">
-          <input name="analyticsFrom" type="date" aria-label="From date" defaultValue="2026-10-01" />
+          <input name="analyticsFrom" type="date" aria-label="From date" defaultValue={`${monthKey}-01`} />
           <span>to</span>
-          <input name="analyticsTo" type="date" aria-label="To date" defaultValue="2026-10-31" />
+          <input
+            name="analyticsTo"
+            type="date"
+            aria-label="To date"
+            defaultValue={toISODate(new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0))}
+          />
         </div>,
       )}
+      {analyticsPreview && (
+        <div className="analytics-preview-note">
+          <b>Sample analytics</b>
+          <span>
+            Illustrative figures for preview only. Live totals will appear when booking records are
+            available for this month.
+          </span>
+        </div>
+      )}
+      <section className="panel analytics-summary" aria-label={`${monthLabel} booking summary`}>
+        <div>
+          <span>Total requests</span>
+          <b>{statusBreakdown.reduce((total, [, count]) => total + count, 0)}</b>
+        </div>
+        <div>
+          <span>Confirmed and approved</span>
+          <b>{volumeBars.reduce((total, count) => total + count, 0)}</b>
+        </div>
+        <div>
+          <span>Pending review</span>
+          <b>{statusBreakdown.find(([name]) => name === 'Pending')?.[1] ?? 0}</b>
+        </div>
+        <div>
+          <span>Most booked venue</span>
+          <b>{mostBooked[0][0]}</b>
+          <small>{mostBooked[0][1]}</small>
+        </div>
+      </section>
       <div className="analytics-grid">
         <section className="panel chart-panel">
           <div className="section-head">
             <div>
               <h2>Booking volume</h2>
-              <p>Confirmed and approved bookings · {monthLabel}</p>
+              <p>
+                {analyticsPreview ? 'Illustrative booking activity' : 'Confirmed and approved bookings'} ·{' '}
+                {monthLabel}
+              </p>
             </div>
           </div>
           <div className="bar-chart">
             {volumeBars.map((n, i) => (
               <div key={i}>
-                <span style={{ height: `${volumeMax ? Math.round((n / volumeMax) * 96) : 0}px` }}></span>
+                <span
+                  title={`${n} bookings`}
+                  style={{ height: `${volumeMax ? Math.round((n / volumeMax) * 145) : 0}px` }}
+                ></span>
                 <small>
                   {['1', '3', '5', '7', '9', '11', '13', '15', '17', '19', '21', '23'][i]}
                 </small>
@@ -1939,17 +2461,6 @@ function App() {
                 <b>{String(i + 1).padStart(2, '0')}</b>
                 <span>{x[0]}</span>
                 <small>{x[1]}</small>
-              </div>
-            ))}
-          </div>
-        </section>
-        <section className="panel">
-          <h2>Booking status</h2>
-          <div className="status-breakdown">
-            {statusBreakdown.map(([n, v]) => (
-              <div key={n}>
-                {status(n)}
-                <b>{v}</b>
               </div>
             ))}
           </div>
@@ -2430,6 +2941,9 @@ function App() {
                   {name === 'Booking Requests' && isAdmin && pendingBookings > 0 && (
                     <i className="nav-count">{pendingBookings}</i>
                   )}
+                  {name === 'Authorization Requests' && isAdmin && authorizationBadgeCount > 0 && (
+                    <i className="nav-count">{authorizationBadgeCount}</i>
+                  )}
                 </button>
               ))}
             </nav>
@@ -2501,15 +3015,15 @@ function App() {
                 className="nav-toggle"
                 aria-label="Toggle navigation"
                 aria-expanded={
-                  window.matchMedia('(max-width: 720px)').matches ? mobileOpen : !sidebarHidden
+                  window.matchMedia('(max-width: 900px)').matches ? mobileOpen : !sidebarHidden
                 }
                 title={
-                  window.matchMedia('(max-width: 720px)').matches
+                  window.matchMedia('(max-width: 900px)').matches
                     ? 'Open navigation'
                     : 'Toggle navigation'
                 }
                 onClick={() => {
-                  if (window.matchMedia('(max-width: 720px)').matches) {
+                  if (window.matchMedia('(max-width: 900px)').matches) {
                     setSidebarHidden(false);
                     setMobileOpen(true);
                   } else {
@@ -2600,14 +3114,14 @@ function App() {
             ) : modal === 'alternatives' ? (
               <>
                 <h2>Choose an alternative</h2>
-                <p>Main Auditorium is unavailable on 21 October, 10:00–12:00.</p>
+                <p>Main auditorium is unavailable on 21 October, 10:00–12:00.</p>
                 <div className="alternative-row">
                   <b>21 Oct · 13:00–15:00</b>
-                  <span>Main Auditorium · Available</span>
+                  <span>Main auditorium · Available</span>
                   {button(
                     'Select time',
                     () => {
-                      setVenue('Main Auditorium');
+                      setVenue('Main auditorium');
                       setModal('');
                       go('Create Booking');
                     },
@@ -2616,11 +3130,11 @@ function App() {
                 </div>
                 <div className="alternative-row">
                   <b>21 Oct · 10:00–12:00</b>
-                  <span>Seminar Hall 2 · Fits 100 people</span>
+                  <span>Mini auditorium · Fits 150 people</span>
                   {button(
                     'Select venue',
                     () => {
-                      setVenue('Seminar Hall 2');
+                      setVenue('Mini auditorium');
                       setModal('');
                       go('Create Booking');
                     },
@@ -2633,12 +3147,13 @@ function App() {
                 <>
                   <h2>Authorization request</h2>
                   <p>
-                    {reviewing.user?.name} · {reviewing.type}
+                    {reviewing.user?.name} · {reviewing.type} · {reviewing.details?.name}
                   </p>
                   <div className="notice">
                     {reviewing.user?.email} · Submitted{' '}
                     {new Date(reviewing.createdAt).toLocaleDateString('en-IN')}
                   </div>
+                  {reviewing.details?.note && <p>{reviewing.details.note}</p>}
                   {reviewing.status === 'pending' ? (
                     <>
                       <label className="field">
