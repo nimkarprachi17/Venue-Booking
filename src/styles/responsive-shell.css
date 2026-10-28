@@ -1,0 +1,534 @@
+@media (max-width: 900px) {
+  .sidebar {
+    width: 275px;
+    transform: translateX(-100%);
+    box-shadow: none;
+  }
+  .sidebar.open {
+    transform: translateX(0);
+    box-shadow: 6px 0 24px #0002;
+  }
+  .sidebar-overlay {
+    display: block;
+    position: fixed;
+    z-index: 4;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border: 0;
+    background: #20212466;
+  }
+  .mobile-close {
+    display: block;
+    margin-left: auto;
+    border: 0;
+    background: none;
+    color: var(--muted);
+  }
+  .workspace,
+  .workspace.sidebar-hidden {
+    margin-left: 0;
+  }
+  .topbar {
+    padding: 0 20px;
+  }
+  .main-content {
+    padding: 24px 22px 44px;
+  }
+  .page-heading {
+    flex-wrap: wrap;
+  }
+  .button:not(.text) {
+    min-height: 38px;
+  }
+  .toolbar input,
+  .toolbar select,
+  .calendar-toolbar select {
+    min-height: 38px;
+  }
+  .filter-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .toolbar {
+    flex-wrap: wrap;
+  }
+  .toolbar-filters {
+    flex: 1 1 300px;
+    justify-content: flex-end;
+  }
+  .calendar-toolbar {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .calendar-toolbar > * {
+    min-width: 0;
+  }
+}
+@media (max-width: 720px) {
+  .sidebar {
+    width: 275px;
+    transform: translateX(-100%);
+    transition: transform 0.2s;
+    box-shadow: none;
+  }
+  .workspace.sidebar-hidden {
+    margin-left: 0;
+  }
+  .sidebar.open {
+    transform: translateX(0);
+    box-shadow: 6px 0 24px #0002;
+  }
+  .sidebar-overlay {
+    display: block;
+    position: fixed;
+    z-index: 4;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border: 0;
+    background: #20212466;
+  }
+  .mobile-close {
+    display: block;
+    margin-left: auto;
+    border: 0;
+    background: none;
+    color: var(--muted);
+  }
+  .brand {
+    padding-bottom: 18px;
+  }
+  .workspace {
+    margin-left: 0;
+  }
+  .topbar {
+    height: 54px;
+    padding: 0 14px;
+  }
+  .nav-toggle {
+    display: grid;
+    place-items: center;
+    border: 0;
+    background: none;
+    padding: 5px;
+    margin-right: 8px;
+    color: #4e535a;
+  }
+  .top-actions {
+    gap: 8px;
+  }
+  .top-profile span,
+  .top-profile > svg {
+    display: none;
+  }
+  .main-content {
+    padding: 22px 14px 38px;
+  }
+  .button:not(.text) {
+    min-height: 40px;
+  }
+  .field > span {
+    font-size: 12px;
+  }
+  .field input,
+  .field select,
+  .toolbar input,
+  .toolbar select {
+    min-height: 40px;
+    font-size: 14px;
+  }
+  .checkboxes input {
+    width: 16px;
+    height: 16px;
+    min-height: 16px;
+    padding: 0;
+  }
+  .input-icon {
+    min-height: 40px;
+  }
+  .input-icon input {
+    min-height: 34px;
+    font-size: 14px;
+  }
+  .page-heading {
+    gap: 12px;
+    margin-bottom: 18px;
+    flex-wrap: wrap;
+  }
+  .page-heading h1 {
+    font-size: 22px;
+  }
+  .page-heading p {
+    font-size: 12px;
+    line-height: 1.5;
+  }
+  .page-heading > .button {
+    padding: 0 8px;
+    font-size: 12px;
+    min-height: 38px;
+  }
+  .page-heading .toolbar {
+    width: 100%;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: center;
+    justify-content: flex-start;
+  }
+  .page-heading .toolbar input {
+    width: min(120px, 32vw);
+  }
+  .dashboard-grid,
+  .form-layout,
+  .detail-layout,
+  .admin-grid,
+  .analytics-grid {
+    grid-template-columns: 1fr;
+  }
+  .analytics-preview-note {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .analytics-summary > div {
+    min-height: 70px;
+    padding: 12px;
+  }
+  .wide,
+  .chart-panel {
+    grid-row: auto;
+    grid-column: auto;
+  }
+  .summary-line {
+    flex-wrap: wrap;
+  }
+  .summary-line > div:not(.auth-notice) {
+    min-width: 33.3%;
+    flex: 1;
+    padding: 12px 10px;
+  }
+  .summary-line b {
+    font-size: 17px;
+  }
+  .auth-notice {
+    min-width: 100%;
+    order: 2;
+    flex-wrap: wrap;
+  }
+  .panel {
+    padding: 15px;
+  }
+  .table-wrap table.user-booking-table {
+    min-width: 680px;
+  }
+  .table-wrap table.admin-booking-table {
+    min-width: 940px;
+  }
+  .table-wrap table:not(.admin-booking-table):not(.user-booking-table) {
+    min-width: 760px;
+  }
+  .table-wrap th {
+    font-size: 11px;
+  }
+  .filter-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+  .search-line {
+    max-width: none;
+  }
+  .recommendation-band {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .recommendation-band .button {
+    width: auto;
+    min-height: 38px;
+    padding: 0 12px;
+    font-size: 12px;
+  }
+  .recommendation-band .button svg {
+    width: 16px;
+  }
+  .venue-row {
+    grid-template-columns: 86px 1fr;
+    gap: 8px 11px;
+    padding: 12px;
+  }
+  .venue-row > img {
+    width: 86px;
+    height: 76px;
+    grid-row: span 2;
+  }
+  .venue-main h3 {
+    font-size: 14px;
+  }
+  .venue-main p {
+    font-size: 11px;
+    line-height: 1.4;
+  }
+  .chips {
+    gap: 4px;
+  }
+  .chips span {
+    font-size: 10px;
+    padding: 4px 6px;
+  }
+  .venue-cap {
+    grid-column: 2;
+    display: flex;
+    gap: 7px;
+  }
+  .venue-cap span,
+  .venue-cap b {
+    font-size: 11px;
+  }
+  .venue-availability {
+    display: flex;
+    grid-column: 2;
+    font-size: 11px;
+  }
+  .venue-actions {
+    grid-column: 1/-1;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+  }
+  .venue-actions .button {
+    min-height: 38px;
+    font-size: 12px;
+  }
+  .conflict-callout {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+  .conflict-callout > div {
+    flex: 1;
+    min-width: 0;
+  }
+  .conflict-callout .button {
+    margin: 4px 0 0;
+  }
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+  .form-grid > .field:has(textarea) {
+    grid-column: auto;
+  }
+  .booking-event-grid:not(.is-admin) > .field:nth-child(3),
+  .booking-schedule-grid > .field:has(.checkboxes) {
+    grid-column: auto;
+  }
+  .booking-section-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .booking-summary {
+    position: static;
+  }
+  .form-footer {
+    align-items: flex-start;
+    gap: 10px;
+    flex-direction: column;
+  }
+  .detail-photo {
+    height: 205px;
+  }
+  .detail-facts span {
+    font-size: 11px;
+  }
+  .toolbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .toolbar > .input-icon,
+  .toolbar > select {
+    width: 100%;
+  }
+  .tabs {
+    width: 100%;
+    overflow: auto;
+  }
+  .tabs button {
+    height: 40px;
+    padding: 0 9px;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+  .auth-review-panel {
+    padding: 16px;
+  }
+  .auth-review-row {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 12px;
+    padding: 16px 4px;
+  }
+  .auth-review-row .row-actions {
+    align-self: flex-start;
+  }
+  .toolbar-filters {
+    width: 100%;
+  }
+  .toolbar-filters .input-icon {
+    flex: 1;
+  }
+  .toolbar-filters > input {
+    width: 130px;
+  }
+  .detail-inline {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .admin-kpis {
+    grid-template-columns: 1fr 1fr;
+  }
+  .admin-kpis > div:nth-child(2) {
+    border-right: 0;
+  }
+  .admin-kpis > div:nth-child(-n + 2) {
+    border-bottom: 1px solid var(--line);
+  }
+  .overview-request {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+    padding: 14px 2px;
+  }
+  .overview-request-actions {
+    justify-content: flex-start;
+  }
+  .dashboard-auth-request {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .calendar-toolbar {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .calendar-toolbar .tabs {
+    width: auto;
+  }
+  .calendar-toolbar select {
+    flex: 1 1 180px;
+    width: 100%;
+  }
+  .calendar-week {
+    grid-template-columns: 44px repeat(7, 85px);
+  }
+  .calendar-event b {
+    font-size: 11px;
+  }
+  .calendar-event span,
+  .calendar-event small {
+    font-size: 10px;
+  }
+  .calendar-selection {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px;
+  }
+  .calendar-selection > .icon-button {
+    grid-column: 2;
+    grid-row: 1;
+  }
+  .analytics-grid .panel {
+    min-width: 0;
+  }
+  .util-row {
+    grid-template-columns: 110px 1fr 28px;
+  }
+  .top-profile .avatar {
+    width: 27px;
+    height: 27px;
+  }
+  .modal {
+    padding: 20px;
+    max-height: calc(100dvh - 24px);
+  }
+  .modal-actions {
+    flex-wrap: wrap;
+  }
+  .modal-actions .button,
+  .modal-actions .danger-button {
+    min-height: 40px;
+  }
+  .alternative-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .alternative-row .button {
+    grid-column: auto;
+    grid-row: auto;
+    justify-self: start;
+  }
+  .toast {
+    right: 12px;
+    bottom: 12px;
+    max-width: calc(100vw - 24px);
+  }
+  .login-screen {
+    min-height: 100dvh;
+    padding: 12px;
+  }
+  .auth-status {
+    align-items: flex-start;
+  }
+  .auth-status > .status {
+    margin-left: auto;
+  }
+  .auth-panel > .form-grid {
+    margin: 18px 0;
+  }
+  .login-card {
+    max-height: calc(100dvh - 24px);
+    overflow-y: auto;
+    padding: 22px;
+  }
+}
+/* Compact spacing keeps registration usable on short desktop and mobile screens. */
+@media (max-height: 760px) {
+  .signup-card {
+    padding: 14px 24px;
+  }
+  .signup-card .brand {
+    margin-bottom: 8px;
+  }
+  .signup-card .auth-tabs {
+    margin-bottom: 8px;
+  }
+  .signup-card .field {
+    margin: 5px 0;
+  }
+  .signup-card .field input,
+  .signup-card .field select {
+    height: 36px;
+  }
+}
+@media (max-width: 720px) {
+  .panel.notification-panel {
+    padding: 0 14px;
+  }
+  .notification-panel-head {
+    align-items: flex-start;
+    padding: 15px 0 12px;
+  }
+  .notification-panel-head h2 {
+    font-size: 15px;
+  }
+  .notification-panel-head > span {
+    padding: 4px 6px;
+    font-size: 11px;
+  }
+  .notification-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 9px;
+    padding: 13px 0;
+  }
+  .notification-main {
+    gap: 10px;
+  }
+  .notification-copy strong {
+    font-size: 13px;
+  }
+  .notification-meta {
+    justify-content: space-between;
+  }
+}

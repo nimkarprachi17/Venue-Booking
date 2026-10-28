@@ -1,0 +1,202 @@
+/* Mobile booking and venue records use readable cards instead of wide tables. */
+.booking-cards,
+.venue-management-cards {
+  display: none;
+}
+@media (max-width: 720px) {
+  .admin-booking-table-wrap,
+  .user-booking-table-wrap,
+  .venue-management-table {
+    display: none;
+  }
+  .booking-cards,
+  .venue-management-cards {
+    display: grid;
+    gap: 10px;
+    width: 100%;
+    height: auto;
+    min-height: 0;
+    margin: 0;
+    padding: 0;
+    align-content: start;
+    grid-auto-rows: max-content;
+    align-self: start;
+  }
+  .booking-preview-note {
+    margin: 0 0 10px;
+    padding: 8px 10px;
+    border: 1px solid #f0d6c7;
+    border-left: 3px solid var(--accent);
+    border-radius: 4px;
+    background: #fffaf7;
+    color: #6c5143;
+    font-size: 12px;
+    line-height: 1.45;
+  }
+  .booking-toolbar {
+    display: contents;
+  }
+  .booking-toolbar .tabs {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+    overflow: visible;
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    background: #fff;
+    margin-bottom: 8px;
+  }
+  .booking-toolbar .tabs button {
+    height: 38px;
+    padding: 0 4px;
+    white-space: normal;
+    font-size: 12px;
+  }
+  .booking-toolbar .tabs button:nth-child(even) {
+    border-left: 1px solid var(--line);
+  }
+  .booking-toolbar .tabs button:nth-child(n + 3) {
+    border-top: 1px solid var(--line);
+  }
+  .booking-toolbar .tabs button.active {
+    background: #fff5ef;
+  }
+  .booking-toolbar .toolbar-filters {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+  .booking-toolbar .toolbar-filters .input-icon {
+    width: 100%;
+    min-height: 42px;
+  }
+  .booking-toolbar .toolbar-filters > input {
+    display: none;
+  }
+  .booking-toolbar {
+    height: auto;
+  }
+  .booking-mobile-card,
+  .venue-management-card {
+    min-width: 0;
+    padding: 14px;
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    background: #fff;
+  }
+  .mobile-card-topline {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .mobile-card-topline > div {
+    display: grid;
+    gap: 3px;
+  }
+  .mobile-card-topline > div b,
+  .venue-management-card h3 {
+    margin: 0;
+    font-size: 14px;
+    line-height: 1.35;
+    color: var(--ink);
+  }
+  .mobile-card-topline > div span,
+  .mobile-booking-label,
+  .mobile-card-id {
+    color: var(--muted);
+    font-size: 12px;
+  }
+  .mobile-card-event {
+    display: block;
+    width: 100%;
+    margin: 12px 0 5px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--ink);
+    font: inherit;
+    font-size: 15px;
+    font-weight: 650;
+    line-height: 1.4;
+    text-align: left;
+    overflow-wrap: anywhere;
+  }
+  .mobile-card-venue {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    margin: 0;
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.4;
+  }
+  .mobile-card-venue svg {
+    flex: 0 0 auto;
+    margin-top: 2px;
+  }
+  .mobile-booking-facts {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px 12px;
+    margin: 14px 0 0;
+    padding: 12px 0 0;
+    border-top: 1px solid var(--line);
+  }
+  .mobile-booking-facts div {
+    min-width: 0;
+  }
+  .mobile-booking-facts dt,
+  .venue-mobile-capacity span {
+    margin-bottom: 3px;
+    color: var(--muted);
+    font-size: 11px;
+  }
+  .mobile-booking-facts dd,
+  .venue-mobile-capacity b {
+    margin: 0;
+    color: var(--ink);
+    font-size: 13px;
+    font-weight: 550;
+    overflow-wrap: anywhere;
+  }
+  .mobile-booking-reason {
+    margin: 12px 0 0;
+    padding: 9px 10px;
+    background: #fff8f6;
+    color: #78463f;
+    font-size: 12px;
+    line-height: 1.45;
+  }
+  .mobile-card-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px solid var(--line);
+  }
+  .mobile-card-actions .button {
+    min-height: 38px;
+  }
+  .venue-management-card .mobile-card-topline {
+    align-items: center;
+  }
+  .venue-mobile-capacity {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 13px;
+    padding-top: 11px;
+    border-top: 1px solid var(--line);
+  }
+  .venue-management-card .chips {
+    margin-top: 10px;
+  }
+  .booking-card-empty {
+    min-height: 160px;
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    background: #fff;
+  }
+}

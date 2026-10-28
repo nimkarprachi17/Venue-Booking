@@ -1,0 +1,273 @@
+/* Calendar and analytics views */
+.calendar-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+.calendar-week {
+  display: grid;
+  grid-template-columns: 52px repeat(7, minmax(80px, 1fr));
+  background: white;
+  border: 1px solid var(--line);
+  overflow: auto;
+  min-height: 550px;
+}
+.calendar-preview-note {
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  border-left: 2px solid var(--accent);
+  background: #fff;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+.time-axis,
+.day-col {
+  min-width: 75px;
+  border-right: 1px solid var(--line);
+}
+.time-axis > span {
+  height: 49px;
+  display: block;
+  border-bottom: 1px solid #eff0f2;
+  padding: 4px 5px;
+  color: #90949b;
+  font-size: 9px;
+}
+.day-col > b {
+  height: 39px;
+  display: grid;
+  place-items: center;
+  border-bottom: 1px solid var(--line);
+  font-size: 10px;
+}
+.day-slots {
+  height: 490px;
+  position: relative;
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent 47px,
+    #eff0f2 48px,
+    #eff0f2 49px
+  );
+}
+.calendar-event {
+  position: absolute;
+  left: 3px;
+  right: 3px;
+  width: calc(100% - 6px);
+  border: 0;
+  border-left: 2px solid var(--accent);
+  border-radius: 3px;
+  background: #fff2e9;
+  padding: 6px;
+  display: grid;
+  align-content: start;
+  gap: 5px;
+  overflow: hidden;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+.calendar-event:hover {
+  background: #ffe7d6;
+}
+.calendar-event:focus-visible {
+  z-index: 1;
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.calendar-event b {
+  font-size: 10px;
+  line-height: 1.4;
+}
+.calendar-event span {
+  font-size: 9px;
+  color: #765643;
+}
+.calendar-event small {
+  color: #765643;
+  font-size: 9px;
+  line-height: 1.25;
+}
+.secondary-event {
+  border-color: #7b8790;
+  background: #f0f2f4;
+}
+.secondary-event:hover {
+  background: #e7eaed;
+}
+.secondary-event span {
+  color: #59616a;
+}
+.secondary-event small {
+  color: #59616a;
+}
+.calendar-selection {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 16px;
+  margin-top: 12px;
+  padding: 16px;
+}
+.calendar-selection h2 {
+  margin: 5px 0;
+  font-size: 15px;
+}
+.calendar-selection p,
+.calendar-selection > div > span:last-child {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.analytics-grid {
+  display: grid;
+  grid-template-columns: 1.25fr 1fr;
+  gap: 15px;
+}
+.analytics-preview-note {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border: 1px solid #f0d4c2;
+  border-left: 3px solid var(--accent);
+  background: #fffaf6;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+.analytics-preview-note b {
+  flex: none;
+  color: var(--ink);
+  font-weight: 600;
+}
+.analytics-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-bottom: 15px;
+  padding: 0;
+}
+.analytics-summary > div {
+  display: grid;
+  align-content: center;
+  gap: 5px;
+  min-height: 78px;
+  padding: 14px 18px;
+  border-right: 1px solid var(--line);
+}
+.analytics-summary > div:last-child {
+  border-right: 0;
+}
+.analytics-summary span,
+.analytics-summary small {
+  color: var(--muted);
+  font-size: 11px;
+}
+.analytics-summary b {
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 19px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.analytics-summary > div:last-child b {
+  font-size: 14px;
+}
+.analytics-summary small {
+  margin-top: -3px;
+}
+.chart-panel {
+  grid-row: span 2;
+}
+.bar-chart {
+  height: 250px;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  justify-content: space-around;
+  align-items: end;
+  padding: 12px 6px 0;
+  background: repeating-linear-gradient(to bottom, transparent 0, transparent 48px, #f1f2f4 49px);
+}
+.bar-chart > div {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: end;
+  align-items: center;
+  gap: 7px;
+  flex: 1;
+}
+.bar-chart > div span {
+  width: min(25px, 60%);
+  background: #c96b32;
+  border-radius: 2px 2px 0 0;
+}
+.bar-chart small {
+  font-size: 9px;
+  color: var(--muted);
+  padding-bottom: 5px;
+}
+.chart-legend {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 9px;
+  margin-top: 12px;
+}
+.chart-legend i {
+  width: 8px;
+  height: 8px;
+  background: #c96b32;
+}
+.util-row {
+  display: grid;
+  grid-template-columns: 125px 1fr 30px;
+  align-items: center;
+  gap: 8px;
+  margin: 16px 0;
+  font-size: 10px;
+}
+.util-row b {
+  text-align: right;
+  font-size: 10px;
+}
+.progress {
+  height: 6px;
+  background: #f0f1f2;
+  border-radius: 2px;
+  overflow: hidden;
+}
+.progress i {
+  height: 100%;
+  display: block;
+  background: #c96b32;
+}
+.rank-list > div {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 0;
+  border-bottom: 1px solid #eff0f2;
+}
+.rank-list > div > b {
+  font-size: 10px;
+  color: #a3a7ad;
+  width: 18px;
+}
+.rank-list > div > span {
+  font-size: 11px;
+  flex: 1;
+}
+.rank-list small {
+  font-size: 10px;
+  color: var(--muted);
+}
