@@ -1,0 +1,102 @@
+/* Dialogs, alerts, and toast notifications */
+.modal-backdrop {
+  position: fixed;
+  z-index: 20;
+  inset: 0;
+  background: #20212466;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+}
+.modal {
+  width: min(480px, 100%);
+  max-height: 90vh;
+  overflow: auto;
+  position: relative;
+  background: #fff;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  padding: 24px;
+}
+.modal h2 {
+  font-size: 17px;
+  margin: 0 26px 8px 0;
+}
+.modal > p {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.5;
+  margin: 0 0 17px;
+}
+.modal-close {
+  position: absolute;
+  right: 13px;
+  top: 13px;
+  background: transparent;
+  border: 0;
+  color: var(--muted);
+}
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 21px;
+}
+.alternative-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+}
+.alternative-row b {
+  font-size: 11px;
+}
+.alternative-row span {
+  font-size: 10px;
+  color: var(--muted);
+}
+.alternative-row .button {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+}
+.toast {
+  position: fixed;
+  z-index: 30;
+  bottom: 22px;
+  right: 24px;
+  background: #202124;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 12px 15px;
+  border-radius: 4px;
+  font-size: 12px;
+  box-shadow: 0 5px 20px #0002;
+}
+.toast svg {
+  color: #80c791;
+}
+.nav-toggle {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  margin-right: 12px;
+  padding: 5px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #4e535a;
+}
+.nav-toggle:hover {
+  background: #f7f8fa;
+}
+.mobile-close {
+  display: none;
+}
+.sidebar-overlay {
+  display: none;
+}
