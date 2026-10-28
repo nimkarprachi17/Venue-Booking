@@ -6,6 +6,7 @@ const authRoutes = require("./routes/auth.routes");
 const venueRoutes = require('./routes/venueRoutes');
 const adminRoutes = require("./routes/admin.routes");
 const userRoutes = require("./routes/user.routes");
+const bookingRoutes = require("./routes/bookingRoutes");
 
 const app = express();
 const cookieParser = require("cookie-parser");
@@ -26,6 +27,7 @@ app.use('/api/venues', venueRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/users", userRoutes);
+app.use("/api/bookings", bookingRoutes);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
