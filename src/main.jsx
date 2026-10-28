@@ -411,7 +411,12 @@ function App() {
     setToast(s);
     setTimeout(() => setToast(''), 3000);
   };
-  const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+  const apiBase =
+    import.meta.env.VITE_API_URL !== undefined
+      ? import.meta.env.VITE_API_URL
+      : import.meta.env.DEV
+        ? 'http://localhost:5000'
+        : '';
 
   // JWT session: the access token lives in React state (mirrored in a ref so async code
   // always sees the latest value). The refresh token lives in an httpOnly cookie that the
