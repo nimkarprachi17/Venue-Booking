@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 
-const AUTH_REQUEST_TYPES = ['Class Representative', 'Club Head'];
+const AUTH_REQUEST_TYPES = ['Class Representative', 'Club Head','Faculty'];
 const AUTH_REQUEST_STATUSES = ['pending', 'approved', 'rejected'];
 
 const authRequestSchema = new mongoose.Schema(
@@ -14,6 +14,11 @@ const authRequestSchema = new mongoose.Schema(
       type: String,
       enum: AUTH_REQUEST_TYPES,
       required: [true, 'Request type is required'],
+    },
+    email: {
+      type: String,
+      lowercase: true,
+      trim: true,
     },
     details: {
       name: {

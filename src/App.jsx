@@ -576,13 +576,13 @@ function App() {
       if (!response.ok) throw new Error(data.message || 'Could not verify the code.');
       setRole(data.user.role);
       const isApproved =
-        data.user.role === 'Faculty' ||
+        // data.user.role === 'Faculty' ||
         data.user.role === 'Admin' ||
         data.user.authorizationStatus === 'approved';
       setAuthorized(isApproved);
       setAccessReviewStatus(data.user.authorizationStatus || 'pending');
       setLoginEmail(data.user.email);
-      if (!isApproved && ['Class Representative', 'Club Head'].includes(data.user.role)) {
+      if (!isApproved && ['Class Representative', 'Club Head','Faculty'].includes(data.user.role)) {
         localStorage.setItem(
           'bookARoom.pendingProfileApproval',
           JSON.stringify({ email: data.user.email.toLowerCase(), role: data.user.role }),
@@ -661,13 +661,13 @@ function App() {
       if (!response.ok) throw new Error(data.message || 'Could not sign in.');
       setRole(data.user.role);
       const isApproved =
-        data.user.role === 'Faculty' ||
+        // data.user.role === 'Faculty' ||
         data.user.role === 'Admin' ||
         data.user.authorizationStatus === 'approved';
       setAuthorized(isApproved);
       if (!isApproved) {
         setAccessReviewStatus(data.user.authorizationStatus || 'pending');
-        if (['Class Representative', 'Club Head'].includes(data.user.role)) {
+        if (['Class Representative', 'Club Head','Faculty'].includes(data.user.role)) {
           localStorage.setItem(
             'bookARoom.pendingProfileApproval',
             JSON.stringify({ email: data.user.email.toLowerCase(), role: data.user.role }),
@@ -682,7 +682,7 @@ function App() {
           localStorage.getItem('bookARoom.pendingProfileApproval') || 'null',
         );
         wasWaitingForApproval =
-          ['Class Representative', 'Club Head'].includes(data.user.role) &&
+          ['Class Representative', 'Club Head','Faculty'].includes(data.user.role) &&
           pendingApproval?.email === data.user.email.toLowerCase() &&
           pendingApproval?.role === data.user.role &&
           data.user.authorizationStatus === 'approved';
@@ -1204,6 +1204,7 @@ function App() {
     bookings,
     table,
     status,
+    venue,
     venues,
     setVenue,
     field,
@@ -1462,7 +1463,7 @@ function App() {
           </>
         );
       case 'Profile': {
-        const roleNeedsApproval = ['Class Representative', 'Club Head'].includes(role);
+        const roleNeedsApproval = ['Class Representative', 'Club Head','Faculty'].includes(role);
         const profileRoleApproved =
           !roleNeedsApproval || currentUser.authorizationStatus === 'approved';
 

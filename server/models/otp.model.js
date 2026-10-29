@@ -12,7 +12,10 @@ const otpSchema=new mongoose.Schema({
     createdAt:{
         type:Date,
         expires:300   // 300 sec ke band ye doc(iska object)  db me se delete ho jayega
-    }
+    },
+    attempts: { type: Number,
+        default: 0
+    },
 });
 
 module.exports = mongoose.model("OTP", otpSchema)
