@@ -27,6 +27,10 @@ export function createUserPages(model) {
     venues,
     venue,
     setVenue,
+    venuesLoading,
+    venuesError,
+    loadVenues,
+    getFacilityLabel,
     field,
     query,
     setQuery,
@@ -114,19 +118,20 @@ export function createUserPages(model) {
             </div>
             {button('Explore', () => go('Find a Venue'), 'text')}
           </div>
-          {venues.slice(1, 3).map((v) => (
-            <div className="recommend-item" key={v.name}>
+          {venues.slice(0, 2).map((v) => (
+            <div className="recommend-item" key={v._id}>
               <div>
                 <b>{v.name}</b>
+                {!v.isActive && <span className="venue-inactive-note">Inactive · view only</span>}
                 <span>
-                  Capacity {v.capacity} · {v.facilities.slice(0, 2).join(' · ')}
+                  Capacity {v.capacity} · {v.facilities.slice(0, 2).map(getFacilityLabel).join(' · ')}
                 </span>
               </div>
               <ArrowRight
                 size={16}
                 onClick={() => {
-                  setVenue(v.name);
-                  go('Venue Details');
+                  setVenue(v._id);
+                  go('Venue Details', { venueId: v._id });
                 }}
               />
             </div>
@@ -208,10 +213,24 @@ export function createUserPages(model) {
         </label>
       </div>
       <div className="venue-list">
+        {venuesLoading && <div className="venue-empty-state">Loading available venues…</div>}
+        {!venuesLoading && venuesError && (
+          <div className="venue-empty-state">
+            <b>Could not load venues</b>
+            <span>{venuesError}</span>
+            {button('Try again', loadVenues)}
+          </div>
+        )}
+        {!venuesLoading && !venuesError && venues.length === 0 && (
+          <div className="venue-empty-state">
+            <b>No active venues are available</b>
+            <span>Check back after an administrator adds or activates a venue.</span>
+          </div>
+        )}
         {venues
           .filter((v) => `${v.name} ${v.building}`.toLowerCase().includes(query.toLowerCase()))
           .map(venueRow)}
-        {venues.every(
+        {!venuesLoading && !venuesError && venues.length > 0 && venues.every(
           (v) => !`${v.name} ${v.building}`.toLowerCase().includes(query.toLowerCase()),
         ) && (
           <div className="venue-empty-state">
@@ -289,8 +308,11 @@ export function createUserPages(model) {
             {field(
               'Venue',
               <select name="venue" value={venue} onChange={(e) => setVenue(e.target.value)}>
+                <option value="">Choose a venue</option>
                 {venues.map((v) => (
-                  <option key={v.name}>{v.name}</option>
+                  <option key={v._id} value={v._id} disabled={!v.isActive}>
+                    {v.name}{v.isActive ? '' : ' (Inactive — unavailable for booking)'}
+                  </option>
                 ))}
               </select>,
               '',
@@ -367,8 +389,8 @@ export function createUserPages(model) {
           <div className="summary-venue">
             <Building2 />
             <div>
-              <b>{venue}</b>
-              <span>{venues.find((v) => v.name === venue)?.building}</span>
+              <b>{venues.find((v) => v._id === venue)?.name || 'Choose a venue'}</b>
+              <span>{venues.find((v) => v._id === venue)?.location || 'Venue location'}</span>
             </div>
           </div>
           <dl>
@@ -396,11 +418,11 @@ export function createUserPages(model) {
             </div>
             <div>
               <dt>Capacity</dt>
-              <dd>{venues.find((v) => v.name === venue)?.capacity} people</dd>
+              <dd>{venues.find((v) => v._id === venue)?.capacity || '—'} people</dd>
             </div>
             <div>
               <dt>Facilities</dt>
-              <dd>{venues.find((v) => v.name === venue)?.facilities.join(', ')}</dd>
+              <dd>{venues.find((v) => v._id === venue)?.facilities.map(getFacilityLabel).join(', ') || '—'}</dd>
             </div>
           </dl>
           {role !== 'Faculty' && !isAdmin && (
@@ -409,12 +431,29 @@ export function createUserPages(model) {
               Bookings by {role}s require admin approval.
             </p>
           )}
+          {venues.find((v) => v._id === venue && !v.isActive) && (
+            <p className="summary-note venue-inactive-warning">
+              <AlertCircle size={15} />
+              This venue is inactive and cannot be booked.
+            </p>
+          )}
         </aside>
       </div>
     </>
   );
   const details = () => {
-    const v = venues.find((x) => x.name === venue) || venues[1];
+    const v = venues.find((x) => x._id === venue);
+    if (!v) {
+      return (
+        <>
+          {heading('Venue details', 'This venue is no longer available.', button('Back to search', () => go('Find a Venue')))}
+          <section className="panel venue-empty-state">
+            <b>Venue not found</b>
+            <span>It may have been deactivated or removed by an administrator.</span>
+          </section>
+        </>
+      );
+    }
     return (
       <>
         {heading(
@@ -424,18 +463,16 @@ export function createUserPages(model) {
         )}
         <div className="detail-layout">
           <div>
-            <img
-              className="detail-photo"
-              src={`https://images.unsplash.com/${v.img}?auto=format&fit=crop&w=1200&q=85`}
-              alt={`${v.name} interior`}
-            />
+            {v.imageUrl ? (
+              <img className="detail-photo" src={v.imageUrl} alt={v.name} />
+            ) : (
+              <div className="detail-photo venue-image-placeholder"><MapPin size={24} /><span>No image provided</span></div>
+            )}
             <section className="panel detail-copy">
-              <span className="eyebrow">VENUE · {v.building}</span>
+              <span className="eyebrow">VENUE · {v.location}</span>
               <h2>{v.name}</h2>
-              <p>
-                A flexible campus venue equipped for focused academic sessions, presentations, and
-                collaborative events.
-              </p>
+              {!v.isActive && <span className="status inactive">Inactive · not available for booking</span>}
+              {v.description && <p>{v.description}</p>}
               <div className="detail-facts">
                 <span>
                   <Users />
@@ -444,7 +481,7 @@ export function createUserPages(model) {
                 {v.facilities.map((f) => (
                   <span key={f}>
                     <Check />
-                    {f}
+                  {getFacilityLabel(f)}
                   </span>
                 ))}
               </div>
@@ -455,7 +492,14 @@ export function createUserPages(model) {
           <aside className="panel availability">
             <h2>Check availability</h2>
             <p>Choose a date and time in the booking form. The system checks the venue schedule before submission.</p>
-            {button('Book this venue', () => go('Create Booking'), 'primary')}
+            {v.isActive ? (
+              button('Book this venue', () => go('Create Booking'), 'primary')
+            ) : (
+              <p className="summary-note venue-inactive-warning">
+                <AlertCircle size={15} />
+                This venue is inactive. You can view its details, but it cannot be booked.
+              </p>
+            )}
           </aside>
         </div>
       </>

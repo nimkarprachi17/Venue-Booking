@@ -73,6 +73,14 @@
     border-radius: 5px;
     background: #fff;
   }
+  .venue-management-card-image {
+    display: block;
+    width: 100%;
+    max-height: 170px;
+    margin-bottom: 12px;
+    border-radius: 3px;
+    object-fit: cover;
+  }
   .mobile-card-topline {
     display: flex;
     align-items: flex-start;
@@ -89,6 +97,12 @@
     font-size: 14px;
     line-height: 1.35;
     color: var(--ink);
+  }
+  .venue-admin-description {
+    margin: 8px 0;
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.45;
   }
   .mobile-card-topline > div span,
   .mobile-booking-label,

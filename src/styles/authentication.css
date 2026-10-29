@@ -197,6 +197,52 @@
   height: 40px;
   font-size: 14px;
 }
+.signup-specifications {
+  margin: 14px 0 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+.signup-specifications h2 {
+  margin: 0 0 7px;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+}
+.signup-specification-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0 12px;
+}
+.signup-specifications .field {
+  margin: 6px 0;
+}
+.authorization-specifications {
+  display: grid;
+  gap: 0;
+  margin: 14px 0;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+}
+.authorization-specifications > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+}
+.authorization-specifications > div:last-child {
+  border-bottom: 0;
+}
+.authorization-specifications dt {
+  color: var(--muted);
+}
+.authorization-specifications dd {
+  margin: 0;
+  color: var(--ink);
+  font-weight: 550;
+  text-align: right;
+}
 .signup-card .login-foot {
   font-size: 12px;
   margin-top: 12px;

@@ -1,5 +1,4 @@
 // Shared navigation labels, route paths, and public-route definitions.
-import { venues } from '../data/venues';
 
 export const navUser = [
   ['Overview', 'space_dashboard'],
@@ -48,27 +47,21 @@ export const publicPages = new Set([
   'Venue Details',
 ]);
 
-export const getVenueFromPath = (pathname) => {
-  const slug = pathname.match(/^\/venues\/([^/]+)\/?$/)?.[1];
-  if (!slug) return null;
+export const getVenueIdFromPath = (pathname) => {
+  const venueId = pathname.match(/^\/venues\/([^/]+)\/?$/)?.[1];
+  if (!venueId) return null;
 
-  let venueSlug;
   try {
-    venueSlug = decodeURIComponent(slug);
+    return decodeURIComponent(venueId);
   } catch {
     return null;
   }
-
-  return (
-    venues.find((venue) => venue.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') === venueSlug)
-      ?.name ?? null
-  );
 };
 
 export const getPageFromPath = (pathname) => {
   const path = pathname.replace(/\/+$/, '') || '/';
   if (path === '/authorization' || path === '/') return 'Overview';
-  if (path.startsWith('/venues/')) return getVenueFromPath(path) ? 'Venue Details' : 'Not Found';
+  if (/^\/venues\/[^/]+$/.test(path)) return 'Venue Details';
   if (path.startsWith('/admin/booking-requests/')) return 'Booking Requests';
   if (path.startsWith('/bookings/') && path !== '/bookings/new') return 'My Bookings';
   return Object.entries(pageRoutes).find(([, route]) => route === path)?.[0] || 'Not Found';

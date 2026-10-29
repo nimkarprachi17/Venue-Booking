@@ -2,13 +2,18 @@ const mongoose = require('mongoose');
 
 const FACILITIES = [
   'projector',
+  'display',
   'ac',
   'microphone',
   'soundSystem',
+  'paSystem',
+  'stage',
+  'podium',
   'whiteboard',
   'wifi',
-  'podium',
   'computers',
+  'videoConferencing',
+  'accessible',
 ];
 
 const VENUE_TYPES = ['classroom', 'seminarHall', 'auditorium', 'lab', 'other'];
@@ -32,12 +37,23 @@ const venueSchema = new mongoose.Schema(
       min: [1, 'Capacity must be at least 1'],
     },
     facilities: {
-      type: [{ type: String, enum: FACILITIES }],
+      type: [{ type: String, trim: true }],
       default: [],
     },
     location: {
       type: String,
+      required: [true, 'Location is required'],
       trim: true,
+    },
+    description: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    imageUrl: {
+      type: String,
+      trim: true,
+      default: '',
     },
     isActive: {
       type: Boolean,

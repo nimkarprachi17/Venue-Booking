@@ -12,6 +12,16 @@
   display: block;
   margin-bottom: 14px;
 }
+.detail-photo.venue-image-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--muted);
+  background: #f3f4f6;
+  font-size: 13px;
+}
 .detail-copy h2 {
   font-size: 21px;
   margin: 5px 0;
@@ -126,6 +136,9 @@
 }
 .availability > .button.primary {
   width: 100%;
+  margin-top: 12px;
+}
+.venue-inactive-warning {
   margin-top: 12px;
 }
 .toolbar {
