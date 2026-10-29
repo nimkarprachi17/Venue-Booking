@@ -19,9 +19,16 @@ const refreshCookieOptions = {
 //register
 const userRegister = async (req, res) => {
     try {
-        const { fullName, email, role, password, position, year, branch, className, clubName } = req.body;
+        const { fullName, role, password, position, year, branch, className, clubName } = req.body;
+        const email = req.body.email?.trim().toLowerCase();
         if (!fullName || !email || !password) {
             return res.status(400).json({ message: "Field is empty" });
+        }
+        if (!/.+@.+\..+/.test(email)) {
+            return res.status(400).json({ message: "Enter a valid email address" });
+        }
+        if (password.length < 8) {
+            return res.status(400).json({ message: "Password must be at least 8 characters" });
         }
 
         const allowedRegistrationRoles = ["Faculty", "Class Representative", "Club Head"];
@@ -40,33 +47,18 @@ const userRegister = async (req, res) => {
             return res.status(400).json({ message: "Enter your club name and position" });
         }
 
-        const { fullName, role, password } = req.body;
-        const email=req.body.email?.trim().toLowerCase()
-
-        //Validation
-        if (!fullName || !email || !password) {
-            return res.status(400).json({ message: "Field is empty" });
-        }
-        if (!/.+@.+\..+/.test(email)) {
-            return res.status(400).json({ message: "Enter a valid email address" });
-        }
-        if (password.length < 8) {
-            return res.status(400).json({ message: "Password must be at least 8 characters" });
-        }
-
         const existing = await userModel.findOne({ email });
         if (existing) {
-            const requestmodel = await authRequest.findOne({user:existing._id }).sort({createdAt:-1});
+            const latestRequest = await authRequest.findOne({ user: existing._id }).sort({ createdAt: -1 });
             if (existing.otpVerified && existing.isAuthorized) {
-                console.error(error)
                 return res.status(400).json({ message: "User already exists. Please sign in." });
             }
-            if (existing.otpVerified && requestmodel?.status == "pending") {
+            if (existing.otpVerified && latestRequest?.status === "pending") {
                 return res.status(400).json({ message: "Your request is already awaiting admin approval." });
             }
 
-            await authRequest.deleteMany({ user: existing._id });  //possibility ki like pehle user ne register kiya hoga but reject ho gaya
-            await userModel.deleteOne({ _id:existing._id });   // and now firse register karne ka try kar raha hai
+            await authRequest.deleteMany({ user: existing._id });
+            await userModel.deleteOne({ _id: existing._id });
         }
 
         const hashed = await bcrypt.hash(password, 10);
@@ -83,14 +75,6 @@ const userRegister = async (req, res) => {
             clubName: String(roleDetails.clubName || "").trim(),
             createdAt: new Date(),
         });
-
-        await authRequest.create({
-            user:user._id,
-            email,
-            type:role,
-            details:{name:fullName},
-            status:"pending",
-        })
 
         await otpModel.deleteOne({ email });
         const otp = Math.floor(100000 + Math.random() * 900000).toString();
