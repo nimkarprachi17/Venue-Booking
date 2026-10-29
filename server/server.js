@@ -11,10 +11,22 @@ const app = express();
 const cookieParser = require("cookie-parser");
 connectDB();
 
+const allowedOrigins = [
+  'http://localhost:5173',
+  'https://venue-booking-phi.vercel.app',
+];
+
 app.use(cors({
-  origin: 'http://localhost:5173',
-  credentials: true
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+
+    return callback(new Error(`Origin not allowed by CORS: ${origin}`));
+  },
+  credentials: true,
 }));
+
 app.use(cookieParser());
 app.use(express.json());
 
