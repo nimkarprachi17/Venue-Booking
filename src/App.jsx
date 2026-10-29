@@ -19,9 +19,10 @@ import {
   publicPages,
   getBookingIdFromPath,
   getPageFromPath,
-  getVenueFromPath,
+  getVenueIdFromPath,
 } from './config/navigation';
-import { venues } from './data/venues';
+import { getFacilityLabel, normalizeVenue, venueFacilityOptions } from './utils/venue';
+import { getAuthorizationSpecifications } from './utils/authorization';
 import CalendarPage from './pages/CalendarPage';
 import { createAdminPages } from './pages/adminPages';
 import { createAuthPage } from './pages/authPage';
@@ -44,14 +45,22 @@ function App() {
 
   // Booking and venue workspace state.
   const [bookings, setBookings] = useState([]);
+  const [calendarBookings, setCalendarBookings] = useState([]);
+  const [calendarLoading, setCalendarLoading] = useState(false);
+  const [calendarError, setCalendarError] = useState('');
+  const [venues, setVenues] = useState([]);
+  const [venuesLoading, setVenuesLoading] = useState(true);
+  const [venuesError, setVenuesError] = useState('');
+  const [venueBusy, setVenueBusy] = useState(false);
+  const [selectedVenueFacilityCount, setSelectedVenueFacilityCount] = useState(0);
   const [query, setQuery] = useState('');
+  const [venueCapacityFilter, setVenueCapacityFilter] = useState('All capacities');
+  const [venueFacilityFilter, setVenueFacilityFilter] = useState('All facilities');
   const [filter, setFilter] = useState('All');
   const [selected, setSelected] = useState(null);
   const [toast, setToast] = useState('');
   const [modal, setModal] = useState('');
-  const [venue, setVenue] = useState(
-    () => getVenueFromPath(window.location.pathname) || 'Seminar Hall 2',
-  );
+  const [venue, setVenue] = useState(() => getVenueIdFromPath(window.location.pathname) || '');
   const [bookingDate, setBookingDate] = useState(() => {
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
@@ -72,6 +81,13 @@ function App() {
   const [authView, setAuthView] = useState('signin');
   const [accessReviewStatus, setAccessReviewStatus] = useState('pending');
   const [signupRole, setSignupRole] = useState('Faculty');
+  const [signupSpecifications, setSignupSpecifications] = useState({
+    position: '',
+    year: '',
+    branch: '',
+    className: '',
+    clubName: '',
+  });
   const [signupName, setSignupName] = useState('');
   const [signupPassword, setSignupPassword] = useState('');
   const [signupConfirm, setSignupConfirm] = useState('');
@@ -124,7 +140,7 @@ function App() {
     if (!tokenRef.current && !publicPages.has(p)) p = 'Sign in';
     const path =
       p === 'Venue Details'
-        ? `/venues/${venue.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`
+        ? `/venues/${encodeURIComponent(options.venueId || venue)}`
         : pageRoutes[p] || '/dashboard';
     if (options.replace) {
       window.history.replaceState({}, '', path);
@@ -223,6 +239,30 @@ function App() {
     return data;
   }
 
+  async function loadVenues() {
+    setVenuesError('');
+    setVenuesLoading(true);
+    try {
+      const data = await api('/api/venues?includeInactive=true');
+      const rows = Array.isArray(data) ? data : data.venues || [];
+      const normalized = rows.map(normalizeVenue);
+      setVenues(normalized);
+      setVenue((current) => {
+        if (current && normalized.some((item) => item._id === current)) return current;
+        return normalized[0]?._id || '';
+      });
+    } catch (error) {
+      setVenuesError(error.message || 'Could not load venues.');
+      setVenues([]);
+    } finally {
+      setVenuesLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadVenues();
+  }, [isAdmin, accessToken]);
+
   // Keep the rendered screen in sync with the browser URL and Back/Forward buttons.
   useEffect(() => {
     const handlePopState = () => {
@@ -245,7 +285,7 @@ function App() {
           setRecovering(true);
         }
         if (nextPage === 'Venue Details') {
-          setVenue(getVenueFromPath(window.location.pathname) || 'Seminar Hall 2');
+          setVenue(getVenueIdFromPath(window.location.pathname) || '');
         }
       }
       setSelected(
@@ -295,7 +335,7 @@ function App() {
           go('Overview', { replace: true });
         } else {
           if (requestedPage === 'Venue Details') {
-            setVenue(getVenueFromPath(window.location.pathname) || 'Seminar Hall 2');
+            setVenue(getVenueIdFromPath(window.location.pathname) || '');
           }
           setPage(requestedPage);
         }
@@ -381,6 +421,44 @@ function App() {
       notify(error.message);
     }
   }
+  async function loadCalendarBookings() {
+    setCalendarLoading(true);
+    setCalendarError('');
+    try {
+      const response = await fetch(`${apiBase}/api/bookings/calendar`, {
+        headers: { Accept: 'application/json' },
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.message || 'Could not load the campus calendar.');
+      const rows = Array.isArray(data.bookings) ? data.bookings : [];
+      setCalendarBookings(
+        rows.map((booking) => ({
+          id: String(booking.bookingId || booking._id || ''),
+          event: booking.event || booking.eventName || 'Campus booking',
+          venue: booking.venue || booking.venueName || 'Venue',
+          date: booking.date,
+          time: `${booking.startTime} – ${booking.endTime}`,
+          status: booking.status,
+        })),
+      );
+    } catch (error) {
+      setCalendarError(error.message || 'Could not load the campus calendar.');
+      setCalendarBookings([]);
+    } finally {
+      setCalendarLoading(false);
+    }
+  }
+  useEffect(() => {
+    if (!['Calendar', 'Booking Calendar'].includes(page)) return undefined;
+    loadCalendarBookings();
+    const refreshCalendar = () => loadCalendarBookings();
+    const intervalId = window.setInterval(refreshCalendar, 30_000);
+    window.addEventListener('focus', refreshCalendar);
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener('focus', refreshCalendar);
+    };
+  }, [page]);
   useEffect(() => {
     if (!accessToken) return;
     const pages = [
@@ -418,6 +496,18 @@ function App() {
       setLoginError('Passwords do not match.');
       return;
     }
+    const roleRequirements = {
+      Faculty: ['position'],
+      'Class Representative': ['year', 'branch', 'className'],
+      'Club Head': ['clubName', 'position'],
+    };
+    const missingSpecification = (roleRequirements[signupRole] || []).find(
+      (key) => !signupSpecifications[key].trim(),
+    );
+    if (missingSpecification) {
+      setLoginError('Complete the required role details.');
+      return;
+    }
     setLoginError('');
     setSignupBusy(true);
     try {
@@ -429,6 +519,7 @@ function App() {
           email: loginEmail,
           role: signupRole,
           password: signupPassword,
+          ...signupSpecifications,
         }),
       });
       const data = await response.json();
@@ -618,7 +709,12 @@ function App() {
     const pick = (name) => document.querySelector(`[name="${name}"]`);
     const title = document.getElementById('eventTitle')?.value.trim();
     const attendeeCount = Number(document.getElementById('attendees')?.value);
-    const capacity = venues.find((v) => v.name === venue)?.capacity;
+    const selectedVenue = venues.find((v) => v._id === venue);
+    const capacity = selectedVenue?.capacity;
+    if (!selectedVenue || !selectedVenue.isActive) {
+      notify('Choose an active venue before submitting.');
+      return;
+    }
     if (!title) {
       notify('Enter an event title');
       return;
@@ -634,7 +730,7 @@ function App() {
           event: title,
           eventType: pick('eventType')?.value,
           description: pick('eventDescription')?.value,
-          venue,
+          venueId: venue,
           date: document.getElementById('eventDate')?.value,
           startTime: document.getElementById('startTime')?.value,
           endTime: document.getElementById('endTime')?.value,
@@ -659,6 +755,73 @@ function App() {
       notify(error.message);
     }
   };
+  async function saveVenue() {
+    if (venueBusy) return;
+    const read = (name) => document.querySelector(`[name="${name}"]`);
+    const isEditing = modal === 'edit-venue';
+    const existingVenue = venues.find((item) => item._id === venue);
+    const selectedFacilities = Array.from(
+      document.querySelectorAll('[name="venueFacility"]:checked'),
+    ).map((input) => input.value);
+    const additionalFacilities = (read('venueOtherFacilities')?.value || '')
+      .split(',')
+      .map((facility) => facility.trim())
+      .filter(Boolean);
+    const payload = {
+      name: read('venueName')?.value.trim(),
+      location: read('venueLocation')?.value.trim(),
+      capacity: Number(read('venueCapacity')?.value),
+      facilities: [...new Set([...selectedFacilities, ...additionalFacilities])],
+      description: read('venueDescription')?.value.trim() || '',
+      imageUrl: read('venueImageUrl')?.value.trim() || '',
+    };
+    if (isEditing) payload.isActive = read('venueStatus')?.value === 'active';
+    if (!payload.name || !payload.location || !Number.isFinite(payload.capacity) || payload.capacity < 1) {
+      notify('Enter a venue name, location, and capacity greater than zero.');
+      return;
+    }
+    setVenueBusy(true);
+    try {
+      const data = await api(isEditing ? `/api/venues/${venue}` : '/api/venues', {
+        method: isEditing ? 'PATCH' : 'POST',
+        body: JSON.stringify(payload),
+      });
+      await loadVenues();
+      if (data.venue?._id) setVenue(String(data.venue._id));
+      setModal('');
+      notify(isEditing ? 'Venue updated.' : 'Venue added.');
+    } catch (error) {
+      notify(error.message);
+    } finally {
+      setVenueBusy(false);
+    }
+  }
+  async function deactivateVenue() {
+    if (!venue) return;
+    setVenueBusy(true);
+    try {
+      await api(`/api/venues/${venue}/deactivate`, { method: 'PATCH' });
+      await loadVenues();
+      setModal('');
+      notify('Venue deactivated. Existing booking records are retained.');
+    } catch (error) {
+      notify(error.message);
+    } finally {
+      setVenueBusy(false);
+    }
+  }
+  async function setVenueStatus(id, isActive) {
+    try {
+      await api(`/api/venues/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ isActive }),
+      });
+      await loadVenues();
+      notify(isActive ? 'Venue activated.' : 'Venue deactivated. Existing bookings are retained.');
+    } catch (error) {
+      notify(error.message);
+    }
+  }
   const authorize = () => {
     setAuthorized(false);
     notify('Authorization request submitted');
@@ -728,7 +891,8 @@ function App() {
       return sum + (minutesOf(to) - minutesOf(from)) / 60;
     }, 0);
   // Utilization assumes 9 bookable hours per venue per day in the selected month.
-  const venueUtilization = venues
+  const activeVenues = venues.filter((item) => item.isActive);
+  const venueUtilization = activeVenues
     .map((v) => [
       v.name,
       Math.min(
@@ -741,7 +905,7 @@ function App() {
     .sort((a, b) => b[1] - a[1])
     .slice(0, 4);
   const mostBooked = liveBookings.length
-    ? venues
+    ? activeVenues
         .map((v) => [v.name, liveBookings.filter((b) => b.venue === v.name).length])
         .sort((a, b) => b[1] - a[1])
         .filter(([, count]) => count > 0)
@@ -999,20 +1163,28 @@ function App() {
     </>
   );
   const venueRow = (v) => (
-    <article className="venue-row" key={v.name}>
-      <img
-        src={`https://images.unsplash.com/${v.img}?auto=format&fit=crop&w=600&q=80`}
-        alt={`${v.name} interior`}
-      />
+    <article className="venue-row" key={v._id}>
+      {v.imageUrl ? (
+        <img src={v.imageUrl} alt={`${v.name}`} />
+      ) : (
+        <div className="venue-image-placeholder" aria-label="No venue image provided">
+          <MapPin size={22} />
+          <span>No image</span>
+        </div>
+      )}
       <div className="venue-main">
-        <h3>{v.name}</h3>
+        <div className="venue-title-line">
+          <h3>{v.name}</h3>
+          {!v.isActive && <span className="status inactive">Inactive · view only</span>}
+        </div>
         <p>
           <MapPin size={14} />
-          {v.building}
+          {v.location}
         </p>
+        {v.description && <p className="venue-description">{v.description}</p>}
         <div className="chips">
           {v.facilities.map((f) => (
-            <span key={f}>{f}</span>
+            <span key={f}>{getFacilityLabel(f)}</span>
           ))}
         </div>
       </div>
@@ -1025,16 +1197,22 @@ function App() {
       </div>
       <div className="venue-actions">
         {button('Details', () => {
-          setVenue(v.name);
-          go('Venue Details');
+          setVenue(v._id);
+          go('Venue Details', { venueId: v._id });
         })}
-        {button(
-          'Book venue',
-          () => {
-            setVenue(v.name);
-            go('Create Booking');
-          },
-          'primary',
+        {v.isActive ? (
+          button(
+            'Book venue',
+            () => {
+              setVenue(v._id);
+              go('Create Booking');
+            },
+            'primary',
+          )
+        ) : (
+          <button className="button inactive-button" type="button" disabled>
+            Inactive
+          </button>
         )}
       </div>
     </article>
@@ -1049,6 +1227,11 @@ function App() {
     table,
     status,
     venues,
+    getFacilityLabel,
+    venue,
+    venuesLoading,
+    venuesError,
+    loadVenues,
     setVenue,
     field,
     query,
@@ -1102,6 +1285,17 @@ function App() {
     authorize,
     go,
     venues,
+    venuesLoading,
+    venuesError,
+    loadVenues,
+    venueBusy,
+    selectedVenueFacilityCount,
+    setSelectedVenueFacilityCount,
+    saveVenue,
+    deactivateVenue,
+    setVenueStatus,
+    getFacilityLabel,
+    venueFacilityOptions,
     todaysBookings,
     dashboardBookingRequests,
     dashboardAuthorizationRequests,
@@ -1110,6 +1304,10 @@ function App() {
     setSelected,
     query,
     setQuery,
+    venueCapacityFilter,
+    setVenueCapacityFilter,
+    venueFacilityFilter,
+    setVenueFacilityFilter,
     setVenue,
     monthKey,
     monthLabel,
@@ -1133,7 +1331,9 @@ function App() {
       setCalendarSelection={setCalendarSelection}
       calendarVenue={calendarVenue}
       setCalendarVenue={setCalendarVenue}
-      bookings={bookings}
+      bookings={calendarBookings}
+      loading={calendarLoading}
+      error={calendarError}
       venues={venues}
       heading={heading}
       button={button}
@@ -1169,6 +1369,8 @@ function App() {
     setSignupName,
     signupRole,
     setSignupRole,
+    signupSpecifications,
+    setSignupSpecifications,
     signupPassword,
     setSignupPassword,
     signupConfirm,
@@ -1352,7 +1554,12 @@ function App() {
     }
   };
 
-  const content = renderPage();
+  const authPages = ['Sign in', 'Sign up', 'Forgot password', 'Access Pending'];
+  const reviewingSpecifications = getAuthorizationSpecifications(reviewing);
+  // Do not render a protected workspace while restoring a session or showing auth.
+  // Besides avoiding unnecessary work, this prevents errors in a dashboard page
+  // from taking down the standalone login screen.
+  const content = sessionReady && !authPages.includes(page) ? renderPage() : null;
   if (!sessionReady) {
     return (
       <div className="login-screen">
@@ -1364,7 +1571,7 @@ function App() {
   }
   return (
     <>
-      {['Sign in', 'Sign up', 'Forgot password', 'Access Pending'].includes(page) ? (
+      {authPages.includes(page) ? (
         login()
       ) : (
         <div className="app-shell">
@@ -1573,8 +1780,13 @@ function App() {
                 <>
                   <h2>Authorization request</h2>
                   <p>
-                    {reviewing.user?.name} · {reviewing.type} · {reviewing.details?.name}
+                    {reviewing.user?.name} · {reviewing.type}
                   </p>
+                  <dl className="authorization-specifications">
+                    {reviewingSpecifications.map(([label, value]) => (
+                      <div key={label}><dt>{label}</dt><dd>{value}</dd></div>
+                    ))}
+                  </dl>
                   <div className="notice">
                     {reviewing.user?.email} · Submitted{' '}
                     {new Date(reviewing.createdAt).toLocaleDateString('en-IN')}
@@ -1629,7 +1841,7 @@ function App() {
                 </h2>
                 <p>
                   {modal === 'deactivate'
-                    ? `New bookings will no longer be accepted for ${venue}.`
+                    ? `New bookings will no longer be accepted for ${venues.find((item) => item._id === venue)?.name || 'this venue'}. Existing booking records will be kept.`
                     : 'Keep venue information accurate for campus users.'}
                 </p>
                 {modal !== 'deactivate' && (
@@ -1638,38 +1850,98 @@ function App() {
                       'Venue name',
                       <input
                         name="venueName"
-                        defaultValue={modal === 'edit-venue' ? venue : ''}
+                        defaultValue={modal === 'edit-venue' ? venues.find((item) => item._id === venue)?.name || '' : ''}
                         placeholder="Venue name"
+                        required
                       />,
                     )}
                     {field(
                       'Location',
-                      <input name="venueLocation" placeholder="Building and floor" />,
+                      <input name="venueLocation" defaultValue={modal === 'edit-venue' ? venues.find((item) => item._id === venue)?.location || '' : ''} placeholder="Building and floor" required />,
                     )}
                     {field(
                       'Capacity',
-                      <input name="venueCapacity" type="number" placeholder="Maximum attendees" />,
+                      <input name="venueCapacity" type="number" min="1" defaultValue={modal === 'edit-venue' ? venues.find((item) => item._id === venue)?.capacity || '' : ''} placeholder="Maximum attendees" required />,
                     )}
                     {field(
                       'Facilities',
-                      <input name="venueFacilities" placeholder="Projector, whiteboard" />,
+                      <details className="facility-dropdown">
+                        <summary>
+                          <span>Select facilities</span>
+                          {selectedVenueFacilityCount > 0 && (
+                            <span className="facility-selected-count">
+                              {selectedVenueFacilityCount} selected
+                            </span>
+                          )}
+                          <ChevronDown size={16} aria-hidden="true" />
+                        </summary>
+                        <div className="facility-dropdown-menu">
+                          {venueFacilityOptions.map(([value, label]) => (
+                            <label key={value}>
+                              <input
+                                type="checkbox"
+                                name="venueFacility"
+                                value={value}
+                                defaultChecked={modal === 'edit-venue' && venues.find((item) => item._id === venue)?.facilities.includes(value)}
+                                onChange={() => {
+                                  const checkedCount = document.querySelectorAll('[name="venueFacility"]:checked').length;
+                                  const otherCount = (document.querySelector('[name="venueOtherFacilities"]')?.value || '')
+                                    .split(',').filter((facility) => facility.trim()).length;
+                                  setSelectedVenueFacilityCount(checkedCount + otherCount);
+                                }}
+                              />
+                              {label}
+                            </label>
+                          ))}
+                        </div>
+                      </details>,
+                    )}
+                    {field(
+                      'Additional facilities',
+                      <input
+                        name="venueOtherFacilities"
+                        defaultValue={
+                          modal === 'edit-venue'
+                            ? venues.find((item) => item._id === venue)?.facilities
+                                .filter((facility) => !venueFacilityOptions.some(([value]) => value === facility))
+                                .join(', ')
+                            : ''
+                        }
+                        placeholder="e.g. Lecture capture, lectern computer"
+                        onChange={(event) => {
+                          const checkedCount = document.querySelectorAll('[name="venueFacility"]:checked').length;
+                          const otherCount = event.target.value.split(',').filter((facility) => facility.trim()).length;
+                          setSelectedVenueFacilityCount(checkedCount + otherCount);
+                        }}
+                      />,
+                      'Enter other facilities separated by commas.',
                     )}
                     {field(
                       'Description',
-                      <textarea name="venueDescription" rows="2" placeholder="Venue description" />,
+                      <textarea name="venueDescription" rows="3" defaultValue={modal === 'edit-venue' ? venues.find((item) => item._id === venue)?.description || '' : ''} placeholder="Describe the space and its suitable uses" />,
+                    )}
+                    {field(
+                      'Image URL (optional)',
+                      <input name="venueImageUrl" type="url" defaultValue={modal === 'edit-venue' ? venues.find((item) => item._id === venue)?.imageUrl || '' : ''} placeholder="https://…" />,
+                    )}
+                    {modal === 'edit-venue' && field(
+                      'Status',
+                      <select name="venueStatus" defaultValue={venues.find((item) => item._id === venue)?.isActive ? 'active' : 'inactive'}>
+                        <option value="active">Active — accepts new bookings</option>
+                        <option value="inactive">Inactive — hidden from booking</option>
+                      </select>,
                     )}
                   </div>
                 )}
                 <div className="modal-actions">
                   {button('Cancel', () => setModal(''))}
-                  {button(
-                    modal === 'deactivate' ? 'Deactivate venue' : 'Save venue',
-                    () => {
-                      setModal('');
-                      notify(modal === 'deactivate' ? 'Venue deactivated' : 'Venue saved');
-                    },
-                    modal === 'deactivate' ? 'danger-button' : 'primary',
-                  )}
+                  <button
+                    className={`button ${modal === 'deactivate' ? 'danger-button' : 'primary'}`}
+                    disabled={venueBusy}
+                    onClick={modal === 'deactivate' ? deactivateVenue : saveVenue}
+                  >
+                    {venueBusy ? 'Saving…' : modal === 'deactivate' ? 'Deactivate venue' : 'Save venue'}
+                  </button>
                 </div>
               </>
             )}

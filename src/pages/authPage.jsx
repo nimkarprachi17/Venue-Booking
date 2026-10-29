@@ -29,6 +29,8 @@ export function createAuthPage(model) {
     setSignupName,
     signupRole,
     setSignupRole,
+    signupSpecifications,
+    setSignupSpecifications,
     signupPassword,
     setSignupPassword,
     signupConfirm,
@@ -41,6 +43,46 @@ export function createAuthPage(model) {
     loginLoading,
     signIn,
   } = model;
+  const specificationField = (label, key, placeholder, type = 'text') =>
+    field(
+      label,
+      <input
+        name={`signup${key}`}
+        type={type}
+        placeholder={placeholder}
+        value={signupSpecifications[key]}
+        onChange={(event) => {
+          setSignupSpecifications((current) => ({ ...current, [key]: event.target.value }));
+          setLoginError('');
+        }}
+      />,
+      '',
+      true,
+    );
+
+  const roleSpecificationFields = () => {
+    if (signupRole === 'Faculty') {
+      return specificationField('Position', 'position', 'e.g. Assistant Professor');
+    }
+    if (signupRole === 'Class Representative') {
+      return (
+        <div className="signup-specification-grid">
+          {specificationField('Year', 'year', 'e.g. Third year')}
+          {specificationField('Branch', 'branch', 'e.g. Computer Engineering')}
+          {specificationField('Class / division', 'className', 'e.g. CSE A')}
+        </div>
+      );
+    }
+    if (signupRole === 'Club Head') {
+      return (
+        <div className="signup-specification-grid">
+          {specificationField('Club name', 'clubName', 'e.g. Coding Club')}
+          {specificationField('Position', 'position', 'e.g. President')}
+        </div>
+      );
+    }
+    return null;
+  };
   const login = () => (
     <div className="login-screen">
       <div className={`login-card ${authView === 'signup' ? 'signup-card' : ''}`}>
@@ -252,6 +294,10 @@ export function createAuthPage(model) {
                     <option>Club Head</option>
                   </select>,
                 )}
+                <section className="signup-specifications" aria-label="Role details">
+                  <h2>Role details</h2>
+                  {roleSpecificationFields()}
+                </section>
                 {field(
                   'Password',
                   <input

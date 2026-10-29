@@ -99,7 +99,7 @@ const findConflict = (venueId, startTime, endTime, excludeId) => {
 
 const createBooking = async (req, res) => {
   try {
-    const { event, eventType, description, venue, date, startTime, endTime, attendees, facilities, bookedFor } =
+    const { event, eventType, description, venueId, venue, date, startTime, endTime, attendees, facilities, bookedFor } =
       req.body;
     const role = String(req.user.role || '').toLowerCase();
 
@@ -109,7 +109,7 @@ const createBooking = async (req, res) => {
     if (!event || !String(event).trim()) {
       return res.status(400).json({ message: 'Enter an event title' });
     }
-    if (!venue) {
+    if (!venueId && !venue) {
       return res.status(400).json({ message: 'Choose a venue' });
     }
     const attendeeCount = Number(attendees);
@@ -129,12 +129,18 @@ const createBooking = async (req, res) => {
       return res.status(400).json({ message: 'Booking must start in the future' });
     }
 
-    const venueDoc = await Venue.findOne({
-      name: new RegExp(`^${escapeRegex(String(venue).trim())}$`, 'i'),
-      isActive: true,
-    });
+    // New clients submit the venue's stable database ID. Accept a name as a
+    // fallback during rollout so older deployed frontends can continue booking.
+    const venueDoc = venueId
+      ? await Venue.findOne({ _id: venueId, isActive: true })
+      : await Venue.findOne({
+          name: new RegExp(`^${escapeRegex(String(venue).trim())}$`, 'i'),
+          isActive: true,
+        });
     if (!venueDoc) {
-      return res.status(400).json({ message: `Venue "${venue}" was not found` });
+      return res.status(400).json({
+        message: venueId ? 'Selected venue was not found or is inactive' : `Venue "${venue}" was not found`,
+      });
     }
     if (attendeeCount > venueDoc.capacity) {
       return res.status(400).json({ message: `${venueDoc.name} fits up to ${venueDoc.capacity} people` });
@@ -177,6 +183,32 @@ const getBookings = async (req, res) => {
     const filter = isAdmin ? {} : { bookedBy: req.user._id };
     const bookings = await populateBooking(Booking.find(filter).sort({ startTime: -1 }));
     res.json({ bookings: bookings.map(toClient) });
+  } catch (error) {
+    handleError(res, error);
+  }
+};
+
+// Public campus calendar feed. Return scheduling details only; personal booking
+// records remain available exclusively through the authenticated endpoint.
+const getCalendarBookings = async (_req, res) => {
+  try {
+    res.set('Cache-Control', 'no-store');
+    const bookings = await populateBooking(
+      Booking.find({ status: { $in: ['pending', 'approved'] } }).sort({ startTime: 1 }),
+    );
+    const calendarBookings = bookings.map((booking) => {
+      const clientBooking = toClient(booking);
+      return {
+        bookingId: clientBooking.bookingId,
+        event: clientBooking.event,
+        venue: clientBooking.venue,
+        date: clientBooking.date,
+        startTime: clientBooking.startTime,
+        endTime: clientBooking.endTime,
+        status: clientBooking.status,
+      };
+    });
+    res.json({ bookings: calendarBookings });
   } catch (error) {
     handleError(res, error);
   }
@@ -249,4 +281,12 @@ const cancelBooking = async (req, res) => {
   }
 };
 
-module.exports = { createBooking, getBookings, approveBooking, rejectBooking, cancelBooking, findConflict };
+module.exports = {
+  createBooking,
+  getBookings,
+  getCalendarBookings,
+  approveBooking,
+  rejectBooking,
+  cancelBooking,
+  findConflict,
+};

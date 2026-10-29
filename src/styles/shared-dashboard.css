@@ -26,6 +26,14 @@
 .button.primary:hover {
   background: var(--accent-dark);
 }
+.button.inactive-button,
+.button.inactive-button:hover,
+.button.inactive-button:active {
+  background: #f0f2f4;
+  border-color: #e5e7eb;
+  color: #6b7280;
+  cursor: not-allowed;
+}
 .button.text {
   border-color: transparent;
   background: transparent;
@@ -46,6 +54,15 @@
   height: 35px;
   padding: 0 13px;
   border-radius: 4px;
+}
+.button.danger-button:hover {
+  background: #991b1b;
+  border-color: #991b1b;
+  color: #fff;
+}
+.button.danger-button:active {
+  background: #7f1d1d;
+  border-color: #7f1d1d;
 }
 .full {
   width: 100%;

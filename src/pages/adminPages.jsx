@@ -10,6 +10,7 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import { formatEventDate, toISODate } from '../utils/dateTime';
+import { getAuthorizationSpecifications } from '../utils/authorization';
 
 export function createAdminPages(model) {
   const academicYearStart =
@@ -34,6 +35,17 @@ export function createAdminPages(model) {
     authorize,
     go,
     venues,
+    venuesLoading,
+    venuesError,
+    loadVenues,
+    venueBusy,
+    selectedVenueFacilityCount,
+    setSelectedVenueFacilityCount,
+    saveVenue,
+    deactivateVenue,
+    setVenueStatus,
+    getFacilityLabel,
+    venueFacilityOptions,
     todaysBookings,
     dashboardBookingRequests,
     dashboardAuthorizationRequests,
@@ -42,6 +54,10 @@ export function createAdminPages(model) {
     setSelected,
     query,
     setQuery,
+    venueCapacityFilter,
+    setVenueCapacityFilter,
+    venueFacilityFilter,
+    setVenueFacilityFilter,
     setVenue,
     monthKey,
     monthLabel,
@@ -85,14 +101,19 @@ export function createAdminPages(model) {
               <span>Role requests will appear here.</span>
             </div>
           )}
-          {visibleAuthRequests.map((r) => (
-            <div className="auth-request auth-review-row" key={r._id}>
+          {visibleAuthRequests.map((r) => {
+            const specifications = getAuthorizationSpecifications(r);
+            return (
+              <div className="auth-request auth-review-row" key={r._id}>
               <div>
                 <b>{r.user?.name || 'Unknown user'}</b>
                 <span>
-                  {r.type} · {r.details?.name} · {r.user?.email} · Submitted{' '}
+                  {r.type} · {r.user?.email} · Submitted{' '}
                   {new Date(r.createdAt).toLocaleDateString('en-IN')}
                 </span>
+                <small>
+                  {specifications.map(([label, value]) => `${label}: ${value}`).join(' · ')}
+                </small>
                 {r.details?.note && <small>{r.details.note}</small>}
                 {r.status === 'rejected' && r.rejectionReason && (
                   <small className="reason">Reason: {r.rejectionReason}</small>
@@ -112,7 +133,8 @@ export function createAdminPages(model) {
                   button('Approve', () => reviewRequest(r._id, 'approve'), 'primary')}
               </div>
             </div>
-          ))}
+            );
+          })}
         </section>
       ) : authorized ? (
         <section className="panel auth-panel">
@@ -223,7 +245,7 @@ export function createAdminPages(model) {
         <div>
           <span>Total venues</span>
           <b>{venues.length}</b>
-          <small>{venues.length} active</small>
+          <small>{venues.filter((venue) => venue.isActive).length} active</small>
         </div>
         <div>
           <span>Today’s bookings</span>
@@ -321,9 +343,9 @@ export function createAdminPages(model) {
               <div>
                 <b>{r.user?.name || 'Unknown user'}</b>
                 <span>
-                  {r.type} · {r.details?.name}
+                  {r.type}
                 </span>
-                <small>{r.details?.department}</small>
+                <small>{getAuthorizationSpecifications(r).map(([label, value]) => `${label}: ${value}`).join(' · ')}</small>
               </div>
               <div>
                 {button(
@@ -367,12 +389,28 @@ export function createAdminPages(model) {
       </div>
     </>
   );
-  const venueAdmin = () => (
+  const venueAdmin = () => {
+    const matchingVenues = venues.filter((v) => {
+      const matchesText = `${v.name} ${v.location} ${v.description}`
+        .toLowerCase()
+        .includes(query.toLowerCase());
+      const matchesCapacity =
+        venueCapacityFilter === 'All capacities' ||
+        (venueCapacityFilter === 'Under 50' && v.capacity < 50) ||
+        (venueCapacityFilter === '50–100' && v.capacity >= 50 && v.capacity <= 100) ||
+        (venueCapacityFilter === '100+' && v.capacity > 100);
+      const selectedFacility = venueFacilityOptions.find(([, label]) => label === venueFacilityFilter)?.[0];
+      return matchesText && matchesCapacity && (!selectedFacility || v.facilities.includes(selectedFacility));
+    });
+    return (
     <>
       {heading(
         'Venue management',
         'Manage campus spaces and their booking availability.',
-        button('Add venue', () => setModal('add-venue'), 'primary', Plus),
+        button('Add venue', () => {
+          setSelectedVenueFacilityCount(0);
+          setModal('add-venue');
+        }, 'primary', Plus),
       )}
       <div className="toolbar">
         <div className="input-icon">
@@ -384,20 +422,18 @@ export function createAdminPages(model) {
             onChange={(e) => setQuery(e.target.value)}
           />
         </div>
-        <select name="capacityFilter">
-          <option>All capacities</option>
-          <option>Under 50</option>
-          <option>50–100</option>
-          <option>100+</option>
+        <select name="capacityFilter" aria-label="Filter by capacity" value={venueCapacityFilter} onChange={(event) => setVenueCapacityFilter(event.target.value)}>
+          {['All capacities', 'Under 50', '50–100', '100+'].map((value) => <option key={value}>{value}</option>)}
         </select>
-        <select name="facilityFilter">
+        <select name="facilityFilter" aria-label="Filter by facility" value={venueFacilityFilter} onChange={(event) => setVenueFacilityFilter(event.target.value)}>
           <option>All facilities</option>
-          <option>Projector</option>
-          <option>Accessible</option>
+          {venueFacilityOptions.map(([value, label]) => <option key={value}>{label}</option>)}
         </select>
       </div>
+      {venuesError && <div className="notice warning">{venuesError} {button('Retry', loadVenues)}</div>}
+      {venuesLoading && <div className="panel venue-loading">Loading venues…</div>}
       <div className="table-wrap venue-management-table">
-        <table>
+        <table className="venue-admin-table">
           <thead>
             <tr>
               {['Venue', 'Location', 'Capacity', 'Facilities', 'Status', 'Actions'].map((x) => (
@@ -406,38 +442,71 @@ export function createAdminPages(model) {
             </tr>
           </thead>
           <tbody>
-            {venues
-              .filter((v) => v.name.toLowerCase().includes(query.toLowerCase()))
-              .map((v) => (
-                <tr key={v.name}>
+            {!venuesLoading && matchingVenues.length === 0 && (
+              <tr>
+                <td colSpan="6" className="table-empty-message">
+                  {venues.length === 0 ? 'No venues have been added yet.' : 'No venues match these filters.'}
+                </td>
+              </tr>
+            )}
+            {matchingVenues.map((v) => (
+                <tr key={v._id}>
                   <td>
-                    <b>{v.name}</b>
+                    <div className="venue-admin-identity">
+                      {v.imageUrl ? (
+                        <img src={v.imageUrl} alt="" />
+                      ) : (
+                        <span className="venue-admin-image-placeholder" aria-hidden="true">
+                          <MapPin size={17} />
+                        </span>
+                      )}
+                      <div>
+                        <b title={v.name}>{v.name}</b>
+                        <small title={v.description || 'No description provided'}>
+                          {v.description || 'No description provided'}
+                        </small>
+                      </div>
+                    </div>
                   </td>
-                  <td>{v.building}</td>
-                  <td>{v.capacity}</td>
-                  <td>{v.facilities.join(', ')}</td>
-                  <td>
-                    <span className="status approved">Active</span>
+                  <td className="venue-location-cell">{v.location}</td>
+                  <td className="venue-capacity-cell">
+                    <b>{v.capacity}</b>
+                    <small>people</small>
                   </td>
                   <td>
+                    <div className="venue-admin-facilities">
+                      {v.facilities.length ? v.facilities.slice(0, 3).map((facility) => (
+                        <span className="venue-facility-chip" key={facility}>{getFacilityLabel(facility)}</span>
+                      )) : <span className="muted">No facilities listed</span>}
+                      {v.facilities.length > 3 && <small title={v.facilities.slice(3).map(getFacilityLabel).join(', ')}>+{v.facilities.length - 3} more</small>}
+                    </div>
+                  </td>
+                  <td>
+                    <span className={`status ${v.isActive ? 'approved' : 'rejected'}`}>{v.isActive ? 'Active' : 'Inactive'}</span>
+                  </td>
+                  <td>
+                    <div className="venue-admin-actions">
                     {button(
                       'Edit',
                       () => {
-                        setVenue(v.name);
+                        setVenue(v._id);
+                        setSelectedVenueFacilityCount(v.facilities.length);
                         setModal('edit-venue');
                       },
                       'text',
                       Pencil,
                     )}
-                    {button(
+                    {!v.isActive && button('Activate', () => setVenueStatus(v._id, true), 'text')}
+                    {v.isActive && button(
                       'Deactivate',
                       () => {
-                        setVenue(v.name);
+                        setVenue(v._id);
                         setModal('deactivate');
                       },
                       'text danger',
                       Ban,
                     )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -445,41 +514,43 @@ export function createAdminPages(model) {
         </table>
       </div>
       <div className="venue-management-cards">
-        {venues
-          .filter((v) => v.name.toLowerCase().includes(query.toLowerCase()))
-          .map((v) => (
-            <article className="venue-management-card" key={v.name}>
+        {matchingVenues.map((v) => (
+            <article className="venue-management-card" key={v._id}>
+              {v.imageUrl && <img className="venue-management-card-image" src={v.imageUrl} alt={v.name} />}
               <div className="mobile-card-topline">
                 <h3>{v.name}</h3>
-                <span className="status approved">Active</span>
+                <span className={`status ${v.isActive ? 'approved' : 'rejected'}`}>{v.isActive ? 'Active' : 'Inactive'}</span>
               </div>
               <p className="mobile-card-venue">
                 <MapPin size={14} />
-                {v.building}
+                {v.location}
               </p>
+              {v.description && <p className="venue-admin-description">{v.description}</p>}
               <div className="venue-mobile-capacity">
                 <span>Capacity</span>
                 <b>{v.capacity} people</b>
               </div>
               <div className="chips">
                 {v.facilities.map((facility) => (
-                  <span key={facility}>{facility}</span>
+                  <span key={facility}>{getFacilityLabel(facility)}</span>
                 ))}
               </div>
               <div className="mobile-card-actions">
                 {button(
                   'Edit',
                   () => {
-                    setVenue(v.name);
+                    setVenue(v._id);
+                    setSelectedVenueFacilityCount(v.facilities.length);
                     setModal('edit-venue');
                   },
                   'secondary',
                   Pencil,
                 )}
-                {button(
+                {!v.isActive && button('Activate', () => setVenueStatus(v._id, true), 'text')}
+                {v.isActive && button(
                   'Deactivate',
                   () => {
-                    setVenue(v.name);
+                    setVenue(v._id);
                     setModal('deactivate');
                   },
                   'text danger',
@@ -490,7 +561,8 @@ export function createAdminPages(model) {
           ))}
       </div>
     </>
-  );
+    );
+  };
   const analytics = () => (
     <>
       {heading(
