@@ -15,6 +15,7 @@ connectDB();
 const allowedOrigins = [
   'http://localhost:5173',
   'https://venue-booking-phi.vercel.app',
+  'https://venue-booking-db2wo1rs3-sinister4.vercel.app',
   process.env.CLIENT_URL,
 ].filter(Boolean);
 
