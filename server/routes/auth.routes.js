@@ -14,4 +14,3 @@ router.post("/refresh", authController.refreshAccessToken);
 //feature we can add- token blacklisting 
 
 module.exports = router;
-module.exports = router;
