@@ -22,17 +22,6 @@
     grid-auto-rows: max-content;
     align-self: start;
   }
-  .booking-preview-note {
-    margin: 0 0 10px;
-    padding: 8px 10px;
-    border: 1px solid #f0d6c7;
-    border-left: 3px solid var(--accent);
-    border-radius: 4px;
-    background: #fffaf7;
-    color: #6c5143;
-    font-size: 12px;
-    line-height: 1.45;
-  }
   .booking-toolbar {
     display: contents;
   }

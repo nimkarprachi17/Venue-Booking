@@ -73,70 +73,7 @@ const CalendarPage = ({
       booking.date >= isoStart &&
       booking.date <= isoEnd,
   );
-  const previewBookings = [
-    {
-      id: 'preview-cse-presentation',
-      event: 'CSE Project Presentation',
-      venue: 'Seminar Hall 2',
-      date: toISODate(weekDates[0]),
-      time: '10:00 – 12:00',
-      status: 'Confirmed',
-      attendees: 82,
-      requester: 'Prachi Sharma',
-    },
-    {
-      id: 'preview-web-workshop',
-      event: 'Web Development Workshop',
-      venue: 'Cognizant Lab',
-      date: toISODate(weekDates[1]),
-      time: '14:00 – 16:00',
-      status: 'Approved',
-      attendees: 48,
-      requester: 'Coding Club',
-    },
-    {
-      id: 'preview-guest-lecture',
-      event: 'Department Guest Lecture',
-      venue: 'Main auditorium',
-      date: toISODate(weekDates[2]),
-      time: '11:00 – 13:00',
-      status: 'Confirmed',
-      attendees: 210,
-      requester: 'Computer Engineering',
-    },
-    {
-      id: 'preview-electronics-showcase',
-      event: 'Electronics Design Showcase',
-      venue: 'Electronic Extension Building',
-      date: toISODate(weekDates[2]),
-      time: '11:00 – 13:00',
-      status: 'Pending',
-      attendees: 70,
-      requester: 'Ananya Shah',
-    },
-    {
-      id: 'preview-design-session',
-      event: 'Design Thinking Session',
-      venue: 'Academic Complex NC04',
-      date: toISODate(weekDates[3]),
-      time: '09:00 – 11:00',
-      status: 'Approved',
-      attendees: 36,
-      requester: 'Design Society',
-    },
-    {
-      id: 'preview-coding-meetup',
-      event: 'Coding Club Meetup',
-      venue: 'New Cse NC28',
-      date: toISODate(weekDates[4]),
-      time: '11:00 – 12:30',
-      status: 'Approved',
-      attendees: 24,
-      requester: 'Coding Club',
-    },
-  ];
-  const usingPreview = liveBookings.length === 0;
-  const displayBookings = (usingPreview ? previewBookings : liveBookings).filter(
+  const displayBookings = liveBookings.filter(
     (booking) => calendarVenue === 'All venues' || booking.venue === calendarVenue,
   );
   const days = calendarView === 'Day' ? [calendarDate] : weekDates;
@@ -243,13 +180,6 @@ const CalendarPage = ({
           <span className="calendar-filter-context">Showing {calendarVenue}</span>
         </div>
       )}
-      {usingPreview && (
-        <p className="calendar-preview-note">
-          Preview schedule · Live confirmed bookings and pending requests appear here when
-          available.
-        </p>
-      )}
-
       {calendarView === 'Month' ? (
         <div className="calendar-month-view">
           <div className="calendar-month-weekdays">

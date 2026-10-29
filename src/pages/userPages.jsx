@@ -6,8 +6,6 @@ import {
   Building2,
   CalendarDays,
   Check,
-  ChevronLeft,
-  ChevronRight,
   MapPin,
   Plus,
   Search,
@@ -46,11 +44,8 @@ export function createUserPages(model) {
     bookingEndTime,
     setBookingEndTime,
     createBooking,
-    month,
-    setMonth,
     filter,
     setFilter,
-    showSampleBookingRequests,
     filteredBookings,
     selected,
     closeBookingDetails,
@@ -114,8 +109,8 @@ export function createUserPages(model) {
         <section className="panel recommendations">
           <div className="section-head">
             <div>
-              <h2>Recommended venues</h2>
-              <p>Good fits for your upcoming events</p>
+              <h2>Campus venues</h2>
+              <p>Browse spaces by capacity and facilities</p>
             </div>
             {button('Explore', () => go('Find a Venue'), 'text')}
           </div>
@@ -123,7 +118,9 @@ export function createUserPages(model) {
             <div className="recommend-item" key={v.name}>
               <div>
                 <b>{v.name}</b>
-                <span>Fits your group · projector available</span>
+                <span>
+                  Capacity {v.capacity} · {v.facilities.slice(0, 2).join(' · ')}
+                </span>
               </div>
               <ArrowRight
                 size={16}
@@ -157,10 +154,10 @@ export function createUserPages(model) {
           )}
         </div>
         <div className="filter-grid">
-          {field('Event date', <input name="searchDate" type="date" defaultValue="2026-10-21" />)}
-          {field('Start time', <input name="searchStartTime" type="time" defaultValue="10:00" />)}
-          {field('End time', <input name="searchEndTime" type="time" defaultValue="12:00" />)}
-          {field('Attendees', <input name="searchAttendees" type="number" defaultValue="72" />)}
+          {field('Event date', <input name="searchDate" type="date" />)}
+          {field('Start time', <input name="searchStartTime" type="time" />)}
+          {field('End time', <input name="searchEndTime" type="time" />)}
+          {field('Attendees', <input name="searchAttendees" type="number" min="1" />)}
           {field(
             'Event type',
             <select name="searchEventType">
@@ -210,25 +207,6 @@ export function createUserPages(model) {
           </select>
         </label>
       </div>
-      <section className="recommendation-band">
-        <div>
-          <span className="eyebrow">RECOMMENDED FOR YOUR EVENT</span>
-          <h2>Cognizant Lab</h2>
-          <p>
-            Fits 48 attendees, includes workstations and a projector, and is available for your
-            selected time.
-          </p>
-        </div>
-        {button(
-          'View recommendation',
-          () => {
-            setVenue('Cognizant Lab');
-            go('Venue Details');
-          },
-          'secondary',
-          ArrowRight,
-        )}
-      </section>
       <div className="venue-list">
         {venues
           .filter((v) => `${v.name} ${v.building}`.toLowerCase().includes(query.toLowerCase()))
@@ -242,17 +220,6 @@ export function createUserPages(model) {
             <span>Try a venue name or building.</span>
           </div>
         )}
-      </div>
-      <div className="conflict-callout">
-        <AlertCircle size={18} />
-        <div>
-          <b>Looking for a different time?</b>
-          <span>
-            Main auditorium is booked on 21 Oct, 10:00–12:00. Available alternatives: 13:00–15:00 in
-            Main auditorium, or Mini auditorium at your selected time.
-          </span>
-        </div>
-        {button('See alternatives', () => setModal('alternatives'), 'secondary')}
       </div>
     </>
   );
@@ -486,53 +453,8 @@ export function createUserPages(model) {
             </section>
           </div>
           <aside className="panel availability">
-            <h2>Availability</h2>
-            <div className="month-head">
-              <button className="icon-button" onClick={() => setMonth(month - 1)}>
-                <ChevronLeft />
-              </button>
-              <b>{['October', 'November', 'December'][((month % 3) + 3) % 3]} 2026</b>
-              <button className="icon-button" onClick={() => setMonth(month + 1)}>
-                <ChevronRight />
-              </button>
-            </div>
-            <div className="mini-calendar">
-              {[
-                'M',
-                'T',
-                'W',
-                'T',
-                'F',
-                'S',
-                'S',
-                ...Array.from({ length: 35 }, (_, i) => (i < 31 ? `${i + 1}` : '')),
-              ].map((n, i) => (
-                <span
-                  key={i}
-                  className={`${i === 17 ? 'selected-day' : ''} ${[6, 13, 20, 27].includes(i - 7) ? 'busy-day' : ''}`}
-                >
-                  {n}
-                </span>
-              ))}
-            </div>
-            <div className="legend">
-              <span>
-                <i className="available-dot" />
-                Available
-              </span>
-              <span>
-                <i className="busy-dot" />
-                Unavailable
-              </span>
-            </div>
-            <h3>21 October · Available times</h3>
-            <button className="slot selected-slot">
-              10:00 – 12:00 <Check size={15} />
-            </button>
-            <button className="slot">13:00 – 15:00</button>
-            <button className="slot unavailable-slot" onClick={() => setModal('alternatives')}>
-              15:00 – 17:00 · Booked
-            </button>
+            <h2>Check availability</h2>
+            <p>Choose a date and time in the booking form. The system checks the venue schedule before submission.</p>
             {button('Book this venue', () => go('Create Booking'), 'primary')}
           </aside>
         </div>
@@ -547,11 +469,6 @@ export function createUserPages(model) {
           ? 'Review booking requests and manage venue reservations.'
           : 'Track requests and manage your venue reservations.',
         button('Book a venue', () => go('Find a Venue'), 'primary', Plus),
-      )}
-      {showSampleBookingRequests && (
-        <p className="booking-preview-note">
-          Sample requests for preview · Live requests will appear here when available.
-        </p>
       )}
       <div className="toolbar booking-toolbar">
         <div className="tabs">

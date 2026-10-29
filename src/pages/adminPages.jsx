@@ -12,12 +12,13 @@ import {
 import { formatEventDate, toISODate } from '../utils/dateTime';
 
 export function createAdminPages(model) {
+  const academicYearStart =
+    new Date().getMonth() >= 5 ? new Date().getFullYear() : new Date().getFullYear() - 1;
   const {
     heading,
     isAdmin,
     authFilter,
     setAuthFilter,
-    showingAuthPreview,
     visibleAuthRequests,
     button,
     setReviewing,
@@ -36,8 +37,6 @@ export function createAdminPages(model) {
     todaysBookings,
     dashboardBookingRequests,
     dashboardAuthorizationRequests,
-    dashboardBookingPreview,
-    dashboardAuthorizationPreview,
     openBooking,
     decision,
     setSelected,
@@ -46,7 +45,6 @@ export function createAdminPages(model) {
     setVenue,
     monthKey,
     monthLabel,
-    analyticsPreview,
     statusBreakdown,
     volumeBars,
     mostBooked,
@@ -80,12 +78,6 @@ export function createAdminPages(model) {
               </button>
             ))}
           </div>
-          {showingAuthPreview && (
-            <p className="authorization-preview-note">
-              Sample authorization requests for preview · Live requests will appear here when
-              available.
-            </p>
-          )}
           {visibleAuthRequests.length === 0 && (
             <div className="empty">
               <ShieldCheck />
@@ -129,10 +121,7 @@ export function createAdminPages(model) {
             <div>
               <span className="eyebrow">CURRENT STATUS</span>
               <h2>Approved</h2>
-              <p>
-                Authorized as {role === 'Faculty' ? 'Class Representative' : role} · Submitted 12
-                Oct 2026
-              </p>
+              <p>Authorized as {role === 'Faculty' ? 'Class Representative' : role}.</p>
             </div>
             {status('Approved')}
           </div>
@@ -141,14 +130,14 @@ export function createAdminPages(model) {
           </div>
           {field(
             'Authorized class or club',
-            <input name="authorizedClub" defaultValue="CSE Coding Club" />,
+            <input name="authorizedClub" placeholder="Class or club name" />,
           )}
           {field(
             'Supporting information',
             <textarea
               name="supportingInfo"
               rows="3"
-              defaultValue="Student club lead for the 2026–27 academic year."
+              placeholder="Add information that supports this authorization."
             />,
           )}
           {button('Update details', () => notify('Authorization details updated'), 'primary')}
@@ -163,7 +152,7 @@ export function createAdminPages(model) {
               <p>
                 {authorized
                   ? 'Submit a request for your college role.'
-                  : 'Request submitted 18 Oct 2026 · Awaiting admin review'}
+                  : 'Awaiting admin review.'}
               </p>
             </div>
             {status(authorized ? 'Not Requested' : 'Pending')}
@@ -194,8 +183,11 @@ export function createAdminPages(model) {
                 {field(
                   'Academic year',
                   <select name="academicYear">
-                    <option>2026–27</option>
-                    <option>2025–26</option>
+                    {[academicYearStart, academicYearStart - 1].map((year) => (
+                      <option key={year}>
+                        {year}–{String(year + 1).slice(-2)}
+                      </option>
+                    ))}
                   </select>,
                 )}
                 {field(
@@ -254,11 +246,7 @@ export function createAdminPages(model) {
           <div className="section-head">
             <div>
               <h2>Booking requests</h2>
-              <p>
-                {dashboardBookingPreview
-                  ? 'Sample requests for preview · Live requests will replace these when available.'
-                  : 'Only CR and Club Head requests need approval.'}
-              </p>
+              <p>Only CR and Club Head requests need approval.</p>
             </div>
             {button('View queue', () => go('Booking Requests'), 'text')}
           </div>
@@ -318,11 +306,7 @@ export function createAdminPages(model) {
           <div className="section-head">
             <div>
               <h2>Authorization requests</h2>
-              <p>
-                {dashboardAuthorizationPreview
-                  ? 'Sample preview requests · Separate from booking approvals.'
-                  : 'Separate from booking approvals.'}
-              </p>
+              <p>Separate from booking approvals.</p>
             </div>
             {button('View all', () => go('Authorization Requests'), 'text')}
           </div>
@@ -530,15 +514,6 @@ export function createAdminPages(model) {
           />
         </div>,
       )}
-      {analyticsPreview && (
-        <div className="analytics-preview-note">
-          <b>Sample analytics</b>
-          <span>
-            Illustrative figures for preview only. Live totals will appear when booking records are
-            available for this month.
-          </span>
-        </div>
-      )}
       <section className="panel analytics-summary" aria-label={`${monthLabel} booking summary`}>
         <div>
           <span>Total requests</span>
@@ -554,8 +529,8 @@ export function createAdminPages(model) {
         </div>
         <div>
           <span>Most booked venue</span>
-          <b>{mostBooked[0][0]}</b>
-          <small>{mostBooked[0][1]}</small>
+          <b>{mostBooked[0]?.[0] || '—'}</b>
+          <small>{mostBooked[0]?.[1] || 'No bookings yet'}</small>
         </div>
       </section>
       <div className="analytics-grid">
@@ -563,12 +538,7 @@ export function createAdminPages(model) {
           <div className="section-head">
             <div>
               <h2>Booking volume</h2>
-              <p>
-                {analyticsPreview
-                  ? 'Illustrative booking activity'
-                  : 'Confirmed and approved bookings'}{' '}
-                · {monthLabel}
-              </p>
+              <p>Confirmed and approved bookings · {monthLabel}</p>
             </div>
           </div>
           <div className="bar-chart">
@@ -604,15 +574,19 @@ export function createAdminPages(model) {
         </section>
         <section className="panel">
           <h2>Most booked venues</h2>
-          <div className="rank-list">
-            {mostBooked.map((x, i) => (
-              <div key={x[0]}>
-                <b>{String(i + 1).padStart(2, '0')}</b>
-                <span>{x[0]}</span>
-                <small>{x[1]}</small>
-              </div>
-            ))}
-          </div>
+          {mostBooked.length ? (
+            <div className="rank-list">
+              {mostBooked.map((x, i) => (
+                <div key={x[0]}>
+                  <b>{String(i + 1).padStart(2, '0')}</b>
+                  <span>{x[0]}</span>
+                  <small>{x[1]}</small>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="muted">No bookings recorded for this month.</p>
+          )}
         </section>
       </div>
     </>
