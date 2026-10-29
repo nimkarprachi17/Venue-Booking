@@ -44,57 +44,6 @@ function App() {
 
   // Booking and venue workspace state.
   const [bookings, setBookings] = useState([]);
-  const [previewBookingRequests, setPreviewBookingRequests] = useState(() => {
-    const requested = new Date();
-    const submitted = requested.toLocaleDateString('en-IN', {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric',
-    });
-    const withDaysFromNow = (days) => {
-      const date = new Date();
-      date.setDate(date.getDate() + days);
-      return toISODate(date);
-    };
-    return [
-      {
-        id: 'preview-request-cse-presentation',
-        requester: 'Riya Kulkarni',
-        role: 'CR',
-        event: 'CSE Project Presentation',
-        venue: 'Seminar Hall 2',
-        date: withDaysFromNow(2),
-        time: '10:00 – 12:00',
-        attendees: 82,
-        requested: submitted,
-        status: 'Pending',
-      },
-      {
-        id: 'preview-request-web-workshop',
-        requester: 'Aarav Patil',
-        role: 'Club Head',
-        event: 'Web Development Workshop',
-        venue: 'Cognizant Lab',
-        date: withDaysFromNow(3),
-        time: '14:00 – 16:00',
-        attendees: 48,
-        requested: submitted,
-        status: 'Pending',
-      },
-      {
-        id: 'preview-request-electronics-showcase',
-        requester: 'Ananya Shah',
-        role: 'CR',
-        event: 'Electronics Design Showcase',
-        venue: 'Electronic Extension Building',
-        date: withDaysFromNow(5),
-        time: '11:00 – 13:00',
-        attendees: 70,
-        requested: submitted,
-        status: 'Pending',
-      },
-    ];
-  });
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('All');
   const [selected, setSelected] = useState(null);
@@ -110,9 +59,8 @@ function App() {
   });
   const [bookingStartTime, setBookingStartTime] = useState('10:00');
   const [bookingEndTime, setBookingEndTime] = useState('12:00');
-  const [bookingAttendees, setBookingAttendees] = useState('48');
+  const [bookingAttendees, setBookingAttendees] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [month, setMonth] = useState(0);
 
   // Sign-in, sign-up, and email verification state.
   const [loginEmail, setLoginEmail] = useState('');
@@ -148,47 +96,6 @@ function App() {
   });
   const [authRequests, setAuthRequests] = useState([]);
   const [pendingAuthRequestCount, setPendingAuthRequestCount] = useState(null);
-  const [previewAuthRequests, setPreviewAuthRequests] = useState(() => {
-    const createdAt = new Date().toISOString();
-    return [
-      {
-        _id: 'preview-auth-request-cr-cse',
-        user: { name: 'Meera Joshi', email: 'meera.joshi@college.edu' },
-        type: 'Class Representative',
-        details: {
-          name: 'CSE · Third Year',
-          department: 'Computer Engineering',
-          note: 'Elected class representative for the 2026–27 academic year.',
-        },
-        status: 'pending',
-        createdAt,
-      },
-      {
-        _id: 'preview-auth-request-club',
-        user: { name: 'Kabir Deshmukh', email: 'kabir.deshmukh@college.edu' },
-        type: 'Club Head',
-        details: {
-          name: 'Coding Club',
-          department: 'Computer Engineering',
-          note: 'Club coordinator requesting venue booking access for student events.',
-        },
-        status: 'pending',
-        createdAt,
-      },
-      {
-        _id: 'preview-auth-request-cr-electronics',
-        user: { name: 'Sana Kulkarni', email: 'sana.kulkarni@college.edu' },
-        type: 'Class Representative',
-        details: {
-          name: 'Electronics · Second Year',
-          department: 'Electronics Engineering',
-          note: 'Class representative for department seminars and student sessions.',
-        },
-        status: 'pending',
-        createdAt,
-      },
-    ];
-  });
   const [authFilter, setAuthFilter] = useState('pending');
   const [reviewing, setReviewing] = useState(null);
   const [rejectReason, setRejectReason] = useState('');
@@ -442,26 +349,6 @@ function App() {
   }
   async function reviewRequest(id, action, reason) {
     if (reviewBusy) return;
-    if (String(id).startsWith('preview-auth-request-')) {
-      setPreviewAuthRequests((current) =>
-        current.map((request) =>
-          request._id === id
-            ? {
-                ...request,
-                status: action === 'approve' ? 'approved' : 'rejected',
-                rejectionReason: action === 'reject' ? reason : '',
-              }
-            : request,
-        ),
-      );
-      setModal('');
-      setReviewing(null);
-      setRejectReason('');
-      notify(
-        action === 'approve' ? 'Sample authorization approved' : 'Sample authorization rejected',
-      );
-      return;
-    }
     setReviewBusy(true);
     try {
       await api(`/api/admin/auth-requests/${id}/${action}`, {
@@ -717,10 +604,7 @@ function App() {
     }
   };
   // Booking actions and derived data.
-  const showSampleBookingRequests = isAdmin && !bookings.some((b) => b.status === 'Pending');
-  const adminBookingRows = showSampleBookingRequests
-    ? [...bookings, ...previewBookingRequests]
-    : bookings;
+  const adminBookingRows = bookings;
   const filteredBookings = useMemo(
     () =>
       (isAdmin ? adminBookingRows : bookings).filter(
@@ -784,17 +668,6 @@ function App() {
       notify('Enter a rejection reason');
       return;
     }
-    if (String(id).startsWith('preview-request-')) {
-      setPreviewBookingRequests((current) =>
-        current.map((booking) =>
-          booking.id === id ? { ...booking, status, reason: reason?.trim() || '' } : booking,
-        ),
-      );
-      notify(`Sample booking ${status.toLowerCase()}`);
-      setModal('');
-      setSelected(null);
-      return;
-    }
     const action = { Approved: 'approve', Rejected: 'reject', Cancelled: 'cancel' }[status];
     try {
       await api(`/api/bookings/${id}/${action}`, {
@@ -842,15 +715,11 @@ function App() {
     .sort((a, b) => a.time.localeCompare(b.time));
   const monthBookings = bookings.filter((b) => b.date.startsWith(monthKey));
   const liveBookings = monthBookings.filter((b) => ['Confirmed', 'Approved'].includes(b.status));
-  const analyticsPreview = monthBookings.length === 0;
-  const previewVolumeBars = [1, 2, 1, 3, 1, 2, 4, 2, 1, 4, 3, 7];
   const volumeBars = Array.from({ length: 12 }, (_, i) =>
-    analyticsPreview
-      ? previewVolumeBars[i]
-      : liveBookings.filter((b) => {
-          const day = Number(b.date.slice(8));
-          return i === 11 ? day >= 23 : day === 2 * i + 1 || day === 2 * i + 2;
-        }).length,
+    liveBookings.filter((b) => {
+      const day = Number(b.date.slice(8));
+      return i === 11 ? day >= 23 : day === 2 * i + 1 || day === 2 * i + 2;
+    }).length,
   );
   const volumeMax = Math.max(...volumeBars, 0);
   const bookedHours = (list) =>
@@ -859,51 +728,27 @@ function App() {
       return sum + (minutesOf(to) - minutesOf(from)) / 60;
     }, 0);
   // Utilization assumes 9 bookable hours per venue per day in the selected month.
-  const venueUtilization = analyticsPreview
-    ? [
-        ['Main auditorium', 23],
-        ['Mini auditorium', 19],
-        ['Cognizant Lab', 14],
-        ['New Cse NC28', 12],
-        ['Academic Complex NC04', 10],
-        ['Seminar Hall 2', 17],
-        ['Electronic Extension Building', 8],
-      ]
-    : venues
-        .map((v) => [
-          v.name,
-          Math.min(
-            100,
-            Math.round(
-              (bookedHours(liveBookings.filter((b) => b.venue === v.name)) / (9 * monthDays)) * 100,
-            ),
-          ),
-        ])
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 4);
-  const mostBooked = analyticsPreview
-    ? [
-        ['Main auditorium', '10 bookings'],
-        ['Mini auditorium', '9 bookings'],
-        ['Cognizant Lab', '6 bookings'],
-        ['New Cse NC28', '5 bookings'],
-        ['Academic Complex NC04', '5 bookings'],
-        ['Seminar Hall 2', '8 bookings'],
-        ['Electronic Extension Building', '4 bookings'],
-      ]
-    : venues
+  const venueUtilization = venues
+    .map((v) => [
+      v.name,
+      Math.min(
+        100,
+        Math.round(
+          (bookedHours(liveBookings.filter((b) => b.venue === v.name)) / (9 * monthDays)) * 100,
+        ),
+      ),
+    ])
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 4);
+  const mostBooked = liveBookings.length
+    ? venues
         .map((v) => [v.name, liveBookings.filter((b) => b.venue === v.name).length])
         .sort((a, b) => b[1] - a[1])
+        .filter(([, count]) => count > 0)
         .slice(0, 4)
-        .map(([name, count]) => [name, `${count} bookings`]);
-  const statusBreakdown = analyticsPreview
-    ? [
-        ['Confirmed', 21],
-        ['Approved', 10],
-        ['Pending', 4],
-        ['Rejected', 3],
-      ]
-    : ['Confirmed', 'Approved', 'Pending', 'Rejected'].map((name) => [
+        .map(([name, count]) => [name, `${count} bookings`])
+    : [];
+  const statusBreakdown = ['Confirmed', 'Approved', 'Pending', 'Rejected'].map((name) => [
         name,
         monthBookings.filter((b) => b.status === name).length,
       ]);
@@ -1153,7 +998,7 @@ function App() {
       </div>
     </>
   );
-  const venueRow = (v, i) => (
+  const venueRow = (v) => (
     <article className="venue-row" key={v.name}>
       <img
         src={`https://images.unsplash.com/${v.img}?auto=format&fit=crop&w=600&q=80`}
@@ -1176,8 +1021,7 @@ function App() {
         <b>{v.capacity} people</b>
       </div>
       <div className="venue-availability">
-        <span className="available-dot" />
-        Available for selected time
+        Availability checked when you book
       </div>
       <div className="venue-actions">
         {button('Details', () => {
@@ -1223,43 +1067,26 @@ function App() {
     bookingEndTime,
     setBookingEndTime,
     createBooking,
-    month,
-    setMonth,
     filter,
     setFilter,
-    showSampleBookingRequests,
     filteredBookings,
     selected,
     closeBookingDetails,
   });
   const { dashboard, findVenue, createForm, details, bookingsPage } = userPages;
-  const visibleAuthRequests =
-    authRequests.length > 0
-      ? authRequests
-      : previewAuthRequests.filter((request) => request.status === authFilter);
-  const showingAuthPreview = authRequests.length === 0 && visibleAuthRequests.length > 0;
-  const authorizationBadgeCount =
-    pendingAuthRequestCount > 0
-      ? pendingAuthRequestCount
-      : previewAuthRequests.filter((request) => request.status === 'pending').length;
+  const visibleAuthRequests = authRequests;
+  const authorizationBadgeCount = pendingAuthRequestCount || 0;
   const dashboardBookingRequests = adminBookingRows.filter(
     (booking) => booking.status === 'Pending',
   );
-  const dashboardBookingPreview = showSampleBookingRequests && dashboardBookingRequests.length > 0;
-  const liveDashboardAuthorizationRequests = authRequests.filter(
+  const dashboardAuthorizationRequests = authRequests.filter(
     (request) => request.status === 'pending',
   );
-  const dashboardAuthorizationRequests = liveDashboardAuthorizationRequests.length
-    ? liveDashboardAuthorizationRequests
-    : previewAuthRequests.filter((request) => request.status === 'pending');
-  const dashboardAuthorizationPreview =
-    liveDashboardAuthorizationRequests.length === 0 && dashboardAuthorizationRequests.length > 0;
   const adminPages = createAdminPages({
     heading,
     isAdmin,
     authFilter,
     setAuthFilter,
-    showingAuthPreview,
     visibleAuthRequests,
     button,
     setReviewing,
@@ -1278,8 +1105,6 @@ function App() {
     todaysBookings,
     dashboardBookingRequests,
     dashboardAuthorizationRequests,
-    dashboardBookingPreview,
-    dashboardAuthorizationPreview,
     openBooking,
     decision,
     setSelected,
@@ -1288,7 +1113,6 @@ function App() {
     setVenue,
     monthKey,
     monthLabel,
-    analyticsPreview,
     statusBreakdown,
     volumeBars,
     mostBooked,
@@ -1744,38 +1568,7 @@ function App() {
                   )}
                 </div>
               </>
-            ) : modal === 'alternatives' ? (
-              <>
-                <h2>Choose an alternative</h2>
-                <p>Main auditorium is unavailable on 21 October, 10:00–12:00.</p>
-                <div className="alternative-row">
-                  <b>21 Oct · 13:00–15:00</b>
-                  <span>Main auditorium · Available</span>
-                  {button(
-                    'Select time',
-                    () => {
-                      setVenue('Main auditorium');
-                      setModal('');
-                      go('Create Booking');
-                    },
-                    'primary',
-                  )}
-                </div>
-                <div className="alternative-row">
-                  <b>21 Oct · 10:00–12:00</b>
-                  <span>Mini auditorium · Fits 150 people</span>
-                  {button(
-                    'Select venue',
-                    () => {
-                      setVenue('Mini auditorium');
-                      setModal('');
-                      go('Create Booking');
-                    },
-                    'primary',
-                  )}
-                </div>
-              </>
-            ) : modal === 'authorization' ? (
+      ) : modal === 'authorization' ? (
               reviewing && (
                 <>
                   <h2>Authorization request</h2>

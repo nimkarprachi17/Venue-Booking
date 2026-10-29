@@ -214,15 +214,6 @@
   padding: 0 14px;
   font-size: 13px;
 }
-.authorization-preview-note {
-  margin: 0 0 8px;
-  padding: 10px 12px;
-  border-left: 3px solid var(--accent);
-  background: #fbf7f3;
-  color: #665b53;
-  font-size: 12px;
-  line-height: 1.5;
-}
 .auth-review-row {
   align-items: center;
   gap: 20px;

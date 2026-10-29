@@ -184,11 +184,6 @@
   .analytics-grid {
     grid-template-columns: 1fr;
   }
-  .analytics-preview-note {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 3px;
-  }
   .analytics-summary > div {
     min-height: 70px;
     padding: 12px;
