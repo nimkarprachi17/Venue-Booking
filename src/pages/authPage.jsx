@@ -338,7 +338,7 @@ export function createAuthPage(model) {
                   'primary full',
                 )}
                 <small className="login-foot">
-                  CR and Club Head accounts need role authorization before booking.
+                  All accounts need admin approval before you can book a venue.
                 </small>
               </>
             ) : (
