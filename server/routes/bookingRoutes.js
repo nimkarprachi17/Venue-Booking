@@ -2,6 +2,7 @@ const express = require('express');
 const {
   createBooking,
   getBookings,
+  getCalendarBookings,
   approveBooking,
   rejectBooking,
   cancelBooking,
@@ -10,6 +11,7 @@ const { requireAuth, requireRole } = require('../middleware/auth');
 
 const router = express.Router();
 
+router.get('/calendar', getCalendarBookings);
 router.use(requireAuth);
 
 router.get('/', getBookings);

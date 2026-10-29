@@ -17,9 +17,25 @@ const refreshCookieOptions = {
 //register
 const userRegister = async (req, res) => {
     try {
-        const { fullName, email, role, password } = req.body;
+        const { fullName, email, role, password, position, year, branch, className, clubName } = req.body;
         if (!fullName || !email || !password) {
             return res.status(400).json({ message: "Field is empty" });
+        }
+
+        const allowedRegistrationRoles = ["Faculty", "Class Representative", "Club Head"];
+        if (!allowedRegistrationRoles.includes(role)) {
+            return res.status(400).json({ message: "Choose a valid college role" });
+        }
+
+        const roleDetails = { position, year, branch, className, clubName };
+        if (role === "Faculty" && !String(position || "").trim()) {
+            return res.status(400).json({ message: "Enter your faculty position" });
+        }
+        if (role === "Class Representative" && [year, branch, className].some((value) => !String(value || "").trim())) {
+            return res.status(400).json({ message: "Enter your year, branch, and class" });
+        }
+        if (role === "Club Head" && [clubName, position].some((value) => !String(value || "").trim())) {
+            return res.status(400).json({ message: "Enter your club name and position" });
         }
 
 
@@ -43,6 +59,11 @@ const userRegister = async (req, res) => {
             email,
             passwordHash: hashed,
             role,
+            position: String(roleDetails.position || "").trim(),
+            year: String(roleDetails.year || "").trim(),
+            branch: String(roleDetails.branch || "").trim(),
+            className: String(roleDetails.className || "").trim(),
+            clubName: String(roleDetails.clubName || "").trim(),
             createdAt: new Date(),
         });
 
@@ -57,7 +78,18 @@ const userRegister = async (req, res) => {
             await authRequest.create({  //kyuki authRequest schema sirf cr ,club ke liye haii .
                 user: user._id,
                 type: role,
-                details: { name: fullName },
+                details: role === "Class Representative"
+                    ? {
+                        name: String(className).trim(),
+                        className: String(className).trim(),
+                        year: String(year).trim(),
+                        branch: String(branch).trim(),
+                    }
+                    : {
+                        name: String(clubName).trim(),
+                        clubName: String(clubName).trim(),
+                        position: String(position).trim(),
+                    },
                 status: "pending",
             });
         }

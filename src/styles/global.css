@@ -25,6 +25,25 @@
 }
 * {
   box-sizing: border-box;
+  scrollbar-color: rgba(107, 114, 128, 0.58) transparent;
+  scrollbar-width: thin;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-track,
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 8px;
+  background-color: rgba(107, 114, 128, 0.58);
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-button {
+  background: transparent;
 }
 body {
   margin: 0;

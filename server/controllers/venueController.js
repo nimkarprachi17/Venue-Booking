@@ -1,6 +1,15 @@
 const Venue = require('../models/Venue');
 
-const ALLOWED_FIELDS = ['name', 'type', 'capacity', 'facilities', 'location', 'isActive'];
+const ALLOWED_FIELDS = [
+  'name',
+  'type',
+  'capacity',
+  'facilities',
+  'location',
+  'description',
+  'imageUrl',
+  'isActive',
+];
 
 const pickAllowed = (body) =>
   ALLOWED_FIELDS.reduce((data, field) => {
@@ -8,7 +17,24 @@ const pickAllowed = (body) =>
     return data;
   }, {});
 
+const prepareVenueData = (body) => {
+  const data = pickAllowed(body);
+  if (data.capacity !== undefined) data.capacity = Number(data.capacity);
+  if (data.facilities !== undefined) {
+    if (!Array.isArray(data.facilities)) {
+      const error = new Error('Facilities must be a list');
+      error.statusCode = 400;
+      throw error;
+    }
+    data.facilities = [...new Set(data.facilities.map((item) => String(item).trim()).filter(Boolean))];
+  }
+  return data;
+};
+
 const handleError = (res, error) => {
+  if (error.statusCode) {
+    return res.status(error.statusCode).json({ message: error.message });
+  }
   if (error.name === 'ValidationError') {
     const message = Object.values(error.errors)
       .map((e) => e.message)
@@ -25,13 +51,11 @@ const handleError = (res, error) => {
   return res.status(500).json({ message: 'Server error' });
 };
 
-const isAdmin = (req) =>
-  Boolean(req.user && String(req.user.role).toLowerCase() === 'admin');
-
 const createVenue = async (req, res) => {
   try {
-    const venue = await Venue.create(pickAllowed(req.body));
-    res.status(201).json(venue);
+    const data = prepareVenueData(req.body);
+    const venue = await Venue.create(data);
+    res.status(201).json({ venue });
   } catch (error) {
     handleError(res, error);
   }
@@ -42,7 +66,7 @@ const getVenues = async (req, res) => {
     const { minCapacity, facilities, type, includeInactive } = req.query;
     const filter = {};
 
-    if (!(isAdmin(req) && includeInactive === 'true')) {
+    if (includeInactive !== 'true') {
       filter.isActive = true;
     }
     if (minCapacity !== undefined) {
@@ -59,7 +83,7 @@ const getVenues = async (req, res) => {
       filter.type = type;
     }
 
-    const venues = await Venue.find(filter).sort({ capacity: 1, name: 1 });
+    const venues = await Venue.find(filter).sort({ name: 1 });
     res.json(venues);
   } catch (error) {
     handleError(res, error);
@@ -69,7 +93,7 @@ const getVenues = async (req, res) => {
 const getVenueById = async (req, res) => {
   try {
     const venue = await Venue.findById(req.params.id);
-    if (!venue || (!venue.isActive && !isAdmin(req))) {
+    if (!venue) {
       return res.status(404).json({ message: 'Venue not found' });
     }
     res.json(venue);
@@ -80,14 +104,15 @@ const getVenueById = async (req, res) => {
 
 const updateVenue = async (req, res) => {
   try {
-    const venue = await Venue.findByIdAndUpdate(req.params.id, pickAllowed(req.body), {
+    const data = prepareVenueData(req.body);
+    const venue = await Venue.findByIdAndUpdate(req.params.id, data, {
       returnDocument: 'after',
       runValidators: true,
     });
     if (!venue) {
       return res.status(404).json({ message: 'Venue not found' });
     }
-    res.json(venue);
+    res.json({ venue });
   } catch (error) {
     handleError(res, error);
   }

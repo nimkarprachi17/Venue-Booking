@@ -508,3 +508,21 @@
     margin-top: 10px;
   }
 }
+.calendar-load-error {
+  display: grid;
+  gap: 4px;
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border: 1px solid #fecaca;
+  background: #fef2f2;
+  color: #991b1b;
+  font-size: 13px;
+}
+.calendar-load-error span,
+.calendar-loading {
+  color: #6b7280;
+  font-size: 12px;
+}
+.calendar-loading {
+  margin: 0 0 8px;
+}

@@ -25,6 +25,11 @@ const authRequestSchema = new mongoose.Schema(
         type: String,
         trim: true,
       },
+      year: { type: String, trim: true },
+      branch: { type: String, trim: true },
+      className: { type: String, trim: true },
+      clubName: { type: String, trim: true },
+      position: { type: String, trim: true },
       note: {
         type: String,
         trim: true,

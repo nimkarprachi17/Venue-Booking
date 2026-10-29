@@ -18,6 +18,8 @@ const CalendarPage = ({
   calendarVenue,
   setCalendarVenue,
   bookings,
+  loading = false,
+  error = '',
   venues,
   heading,
   button,
@@ -180,6 +182,13 @@ const CalendarPage = ({
           <span className="calendar-filter-context">Showing {calendarVenue}</span>
         </div>
       )}
+      {error && (
+        <div className="calendar-load-error" role="alert">
+          <b>Calendar could not sync</b>
+          <span>{error}</span>
+        </div>
+      )}
+      {loading && <p className="calendar-loading" role="status">Updating campus bookings…</p>}
       {calendarView === 'Month' ? (
         <div className="calendar-month-view">
           <div className="calendar-month-weekdays">
@@ -359,12 +368,14 @@ const CalendarPage = ({
               {calendarSelection.venue} · {formatEventDate(calendarSelection.date)} ·{' '}
               {calendarSelection.time}
             </p>
-            <span>
-              {calendarSelection.attendees} attendees
-              {isAdmin && calendarSelection.requester
-                ? ` · Booked for ${calendarSelection.requester}`
-                : ''}
-            </span>
+            {calendarSelection.attendees !== undefined && (
+              <span>
+                {calendarSelection.attendees} attendees
+                {isAdmin && calendarSelection.requester
+                  ? ` · Booked for ${calendarSelection.requester}`
+                  : ''}
+              </span>
+            )}
           </div>
           {status(calendarDisplayStatus(calendarSelection.status))}
           <button

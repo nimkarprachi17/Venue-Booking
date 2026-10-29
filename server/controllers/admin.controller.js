@@ -7,6 +7,7 @@ const getall=async(req,res)=>{
         const required_status=req.query.status   //which type of data according to status want
         const requests=await authRequestModel
                     .find({status:required_status})
+                    .populate('user', 'name email role position year branch className clubName')
                     .sort({createdAt:-1})
 
         return res.status(200).json({
