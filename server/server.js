@@ -10,7 +10,6 @@ const bookingRoutes = require("./routes/bookingRoutes");
 
 const app = express();
 const cookieParser = require("cookie-parser");
-connectDB();
 
 const allowedOrigins = [
   'http://localhost:5173',
@@ -35,6 +34,19 @@ app.use(express.json());
 
 app.get('/', (req, res) => {
   res.send('Venue Booking API is running');
+});
+
+// Serverless instances must finish connecting before database-backed routes run.
+app.use('/api', async (req, res, next) => {
+  try {
+    await connectDB();
+    next();
+  } catch (error) {
+    res.status(503).json({
+      success: false,
+      message: 'Database is temporarily unavailable. Please try again shortly.',
+    });
+  }
 });
 
 app.use('/api/venues', venueRoutes);

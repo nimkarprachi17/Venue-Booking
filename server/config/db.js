@@ -7,20 +7,20 @@ const mongoose = require('mongoose');
 const userModel = require('../models/User');
 
 const ADMIN_EMAIL = 'admin@college.edu';
-
-let isConnected = false;
+let connectionPromise;
 
 const connectDB = async () => {
-  if (isConnected || mongoose.connection.readyState === 1) {
-    return;
+  if (mongoose.connection.readyState === 1) return mongoose.connection;
+  if (connectionPromise) return connectionPromise;
+  if (!process.env.MONGO_URI) {
+    throw new Error('MONGO_URI is not configured');
   }
-  try {
-    const conn = await mongoose.connect(process.env.MONGO_URI);
-    isConnected = true;
+
+  connectionPromise = mongoose.connect(process.env.MONGO_URI, {
+    serverSelectionTimeoutMS: 10000,
+  }).then(async (conn) => {
     console.log(`MongoDB connected: ${conn.connection.host}`);
 
-    // Create the default admin only if it does not exist yet.
-    // $setOnInsert means an existing admin (and its password) is never overwritten.
     await userModel.findOneAndUpdate(
       { email: ADMIN_EMAIL },
       {
@@ -35,12 +35,14 @@ const connectDB = async () => {
       },
       { upsert: true }
     );
-  } catch (error) {
+    return conn.connection;
+  }).catch((error) => {
+    connectionPromise = undefined;
     console.error(`MongoDB connection failed: ${error.message}`);
-    if (process.env.NODE_ENV !== 'production') {
-      process.exit(1);
-    }
-  }
+    throw error;
+  });
+
+  return connectionPromise;
 };
 
 module.exports = connectDB;
